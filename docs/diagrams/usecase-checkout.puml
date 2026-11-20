@@ -1,0 +1,87 @@
+@startuml
+' BrewLite - UC-01: Đặt và thanh toán đơn hàng
+' Phiên bản: 1.0
+' Ngày: 17/11/2026
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam actor {
+  BackgroundColor #FFFFFF
+  BorderColor #344054
+  FontColor #101828
+}
+skinparam usecase {
+  BackgroundColor #E8F3FF
+  BorderColor #344054
+  FontColor #101828
+  ArrowColor #475467
+}
+skinparam rectangle {
+  BorderColor #667085
+  BackgroundColor #FAFAFA
+}
+skinparam note {
+  BackgroundColor #FFF8E1
+  BorderColor #D0A443
+}
+
+title BrewLite - Use-case UC-01: Đặt và thanh toán đơn hàng
+
+actor "Customer" as Customer
+actor "Payment Service" as PaymentService
+
+rectangle "BrewLite" {
+  usecase "UC-01\nĐặt và thanh toán\nđơn hàng" as UC01
+  usecase "UC-02\nThanh toán" as UC02
+  usecase "UC-09\nĐăng nhập" as UC09
+  usecase "UC-17\nThanh toán Ví" as UC17
+  usecase "UC-18\nThanh toán Thẻ" as UC18
+  usecase "UC-14\nÁp mã khuyến mãi" as UC14 #FFF2CC
+}
+
+Customer -- UC01
+Customer -- UC09
+PaymentService -- UC02
+UC01 ..> UC02 : <<include>>
+UC17 --|> UC02
+UC18 --|> UC02
+UC14 ..> UC01 : <<extend>>
+
+note top of UC09
+  Tiền điều kiện UC-01:
+  JWT hợp lệ, role CUSTOMER.
+  Không phải include bắt buộc
+  trong mỗi lần đặt đơn.
+end note
+
+note bottom of UC01
+  Tạo đơn PENDING và trừ kho
+  trong một transaction.
+  Thanh toán FAILED giữ PENDING,
+  không hoàn tồn kho.
+end note
+
+note bottom of UC14
+  Should - FR-11 / US-13
+  Extension point: trước POST /orders.
+  Chỉ áp dụng nếu triển khai FR-11.
+end note
+
+note bottom of UC02
+  WALLET hoặc CARD; Payment Service
+  chỉ mô phỏng. Bắt buộc có
+  Idempotency-Key.
+end note
+
+legend bottom
+  |= Màu nền |= Mức ưu tiên |
+  |<#E8F3FF> Xanh nhạt | Must |
+  |<#FFF2CC> Vàng nhạt | Should (tùy chọn) |
+  UC-17 và UC-18 chuyên biệt hóa UC-02.
+  Không có Payment Gateway hoặc Shipping Company.
+endlegend
+@enduml
