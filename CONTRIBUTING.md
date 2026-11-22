@@ -23,19 +23,19 @@ Nhánh `main` là nhánh ổn định duy nhất, được bảo vệ bởi Bran
 
 ## 2. Quy ước Commit (Conventional Commits)
 
-Mỗi commit phải tuân theo định dạng:
+Mỗi commit phải tuân theo định dạng (mô tả commit viết bằng tiếng Anh):
 
 ```text
-<type>(<scope>): <mô tả ngắn gọn bằng tiếng Việt hoặc tiếng Anh>
+<type>(<scope>): <short description in English>
 ```
 
 **Danh sách `type` hợp lệ:**
-- `feat`: Thêm chức năng mới (ví dụ: `feat(api): add GET /products endpoint`)
-- `fix`: Sửa lỗi chức năng hoặc logic nghiệp vụ (ví dụ: `fix(payments): handle duplicate idempotency key with same payload`)
-- `docs`: Thêm hoặc cập nhật tài liệu yêu cầu, sơ đồ PlantUML, ADR, ma trận truy vết (ví dụ: `docs(diagrams): add class-domain.puml and class-domain.svg`)
-- `test`: Thêm hoặc sửa unit test, integration test, E2E test (ví dụ: `test(orders): add integration test for out-of-stock rollback`)
-- `chore`: Khởi tạo cấu trúc repo, cập nhật dependencies, cấu hình Docker (ví dụ: `chore(repo): initialize repository structure and workflow docs`)
-- `ci`: Cấu hình hoặc chỉnh sửa GitHub Actions workflow CI/CD và secret scan (ví dụ: `ci(actions): add ci and gitleaks workflows`)
+- `feat`: Thêm chức năng mới — ví dụ: `feat(api): add GET /products endpoint`
+- `fix`: Sửa lỗi chức năng hoặc logic nghiệp vụ — ví dụ: `fix(payments): handle duplicate idempotency key with same payload`
+- `docs`: Thêm hoặc cập nhật tài liệu yêu cầu, sơ đồ PlantUML, ADR, ma trận truy vết — ví dụ: `docs(diagrams): add class-domain.puml and class-domain.svg`
+- `test`: Thêm hoặc sửa unit test, integration test, E2E test — ví dụ: `test(orders): add integration test for out-of-stock rollback`
+- `chore`: Khởi tạo cấu trúc repo, cập nhật dependencies, cấu hình Docker — ví dụ: `chore(repo): add gitignore and env example`
+- `ci`: Cấu hình hoặc chỉnh sửa GitHub Actions workflow CI/CD và secret scan — ví dụ: `ci(actions): add ci and gitleaks workflows`
 
 **Các `scope` gợi ý:** `repo`, `srs`, `diagrams`, `adr`, `architecture`, `api`, `web`, `db`, `orders`, `payments`, `auth`, `docker`, `actions`, `traceability`.
 
@@ -60,17 +60,23 @@ Mỗi commit phải tuân theo định dạng:
 
 ## 5. Definition of Done (DoD)
 
-Theo mục 6 của `docs/requirements/user-stories.md`:
-
-> Một User Story hoàn thành khi đáp ứng AC; có mã nguồn và PR được review chéo; lint, test, build thành công; không lộ secret; tài liệu và ma trận truy vết được cập nhật; có thể chạy và kiểm chứng. Với story production, cần thêm URL, health check và bằng chứng triển khai.
+Một đầu việc / Pull Request chỉ được xem là hoàn thành khi đáp ứng đầy đủ các tiêu chí sau:
+1. Code hoặc tạo phẩm chạy được, đúng đặc tả yêu cầu và tiêu chí chấp nhận.
+2. Pipeline kiểm tra chất lượng (lint, test, build) pass hoàn toàn.
+3. Mỗi thành viên tự viết unit test / component test cho phần mã nguồn mình phụ trách ngay trong PR đó.
+4. Cập nhật đầy đủ `docs/traceability-matrix.md` cho các yêu cầu liên quan.
+5. Cập nhật tài liệu liên quan (`README.md`, API Contract, sơ đồ...) nếu có thay đổi hành vi hệ thống.
+6. Ghi rõ **Lý do thay đổi** trong mô tả PR nếu có điều chỉnh về yêu cầu, sơ đồ hoặc kiến trúc.
+7. Không chứa secret, token, thông tin nhạy cảm trong mã nguồn hoặc log CI.
+8. Được thành viên còn lại trong nhóm review chéo và bấm **Approve** trước khi merge.
 
 ---
 
 ## 6. Mốc Tag Phát hành (Milestones)
 
 Tag chỉ được tạo trên nhánh `main` **sau khi** PR cuối cùng của giai đoạn đó đã được merge:
-- `milestone-task1`: Hoàn thành Task 1 (Context & Scope, SRS, User Stories, UC-01, Class Diagram).
-- `milestone-task2`: Hoàn thành Task 2 (Use-case diagrams, Activity, Sequence, Class).
-- `milestone-task3`: Hoàn thành Task 3 (Tài liệu kiến trúc, ADR, Deployment diagram).
-- `milestone-sprint1`: Hoàn thành Sprint 1 (MVP xem menu + CI pass).
-- `v1.0.0`: Hoàn thành Sprint 2, E2E test, triển khai production và tài liệu bàn giao.
+- `milestone-task1`: Context & Scope, SRS, User Stories, UC-01, use-case diagram tổng quát và use-case diagram checkout.
+- `milestone-task2`: Activity, Sequence, Class diagram.
+- `milestone-task3`: Tài liệu kiến trúc, ADR, Deployment diagram.
+- `milestone-sprint1`: MVP xem menu + CI pass.
+- `v1.0.0`: Sprint 2, E2E, production, tài liệu bàn giao.
