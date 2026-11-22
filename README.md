@@ -41,6 +41,7 @@ brewlite/
 │   ├── architecture/               # architecture.md & adr/001-monorepo.md, ...
 │   ├── continuous-integration/     # Minh chứng CI pass, CI fail, PR bị chặn merge
 │   ├── backlog.md                  # Product Backlog cho Sprint 1 và Sprint 2
+│   ├── api-contract.md             # API Contract
 │   ├── traceability-matrix.md      # Ma trận truy vết yêu cầu – thiết kế – code – test
 │   ├── deployment.md               # Hướng dẫn triển khai & hạ tầng production
 │   ├── security-audit.md           # Kiểm tra bảo mật & quản lý secret
@@ -92,6 +93,23 @@ brewlite/
 
 ## 7. Triển khai (Deploy), Bảo mật & Hoàn tác (Rollback)
 
-- **Quy ước khởi động an toàn (Production Safety Check):** Khi `NODE_ENV=production`, ứng dụng API bắt buộc từ chối khởi động nếu `JWT_SECRET` hoặc các mật khẩu tài khoản mặc định (`SEED_STAFF_PASSWORD`, `SEED_MANAGER_PASSWORD`) vẫn giữ giá trị mẫu `change-me` hoặc bị bỏ trống.
+- **Quy tắc khởi động an toàn (dự kiến):** Khi `NODE_ENV=production`, API sẽ từ chối khởi động nếu `JWT_SECRET` hoặc các mật khẩu tài khoản mặc định (`SEED_STAFF_PASSWORD`, `SEED_MANAGER_PASSWORD`) vẫn giữ giá trị mẫu `change-me` hoặc bị bỏ trống. Quy tắc này sẽ được cài đặt cùng khung backend ở Sprint 1 (tuần 3) và chưa có trong mã nguồn hiện tại.
 - **Triển khai Production (Vercel + Render + GitHub Actions CD):** Sẽ bổ sung ở Sprint 2 (tuần 5). Xem chi tiết tại `docs/deployment.md`.
 - **Quy trình Rollback khi sự cố:** Sẽ bổ sung ở Sprint 2 (tuần 5).
+
+---
+
+## 8. Tài liệu chính
+
+| Tài liệu | Nội dung | Trạng thái |
+|---|---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Quy ước nhánh, commit, quy trình PR và Definition of Done (DoD) | Có trong PR khởi tạo repo |
+| [docs/backlog.md](docs/backlog.md) | Danh sách công việc (Product & Sprint Backlog) cho Sprint 1 và Sprint 2 | Có trong PR khởi tạo repo |
+| [docs/traceability-matrix.md](docs/traceability-matrix.md) | Ma trận truy vết yêu cầu (`FR`/`NFR`) – thiết kế – code – kiểm thử | Có trong PR khởi tạo repo |
+| [docs/requirements/srs.md](docs/requirements/srs.md) | Đặc tả yêu cầu phần mềm (SRS) chức năng và phi chức năng | Sẽ được thêm bằng PR sau |
+| [docs/requirements/user-stories.md](docs/requirements/user-stories.md) | Danh sách User Stories (`US-01..US-18`) và tiêu chí chấp nhận | Sẽ được thêm bằng PR sau |
+| [docs/requirements/uc-01-checkout.md](docs/requirements/uc-01-checkout.md) | Đặc tả chi tiết use-case trọng tâm Đặt và thanh toán đơn hàng (`UC-01`) | Sẽ được thêm bằng PR sau |
+| [docs/architecture/architecture.md](docs/architecture/architecture.md) | Mô tả kiến trúc hệ thống và các quyết định kiến trúc | Sẽ được thêm bằng PR sau |
+| [docs/api-contract.md](docs/api-contract.md) | Đặc tả hợp đồng giao tiếp API (endpoints, request/response, mã lỗi) | Sẽ được thêm bằng PR sau |
+
+Cột "Trạng thái" được cập nhật khi PR tương ứng merge vào `main`, và liên kết tới tệp chưa có sẽ hoạt động sau khi tệp được thêm.

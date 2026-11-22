@@ -1,7 +1,7 @@
 ---
 name: User Story
 about: Đề xuất hoặc theo dõi một yêu cầu chức năng / phi chức năng cho BrewLite
-title: "[US-xx] <Tên story ngắn gọn>"
+title: "US-xx: <tên story>"
 labels: ""
 assignees: ""
 ---

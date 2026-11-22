@@ -72,21 +72,3 @@ Chỉ triển khai theo thứ tự ưu tiên chốt ở quyết định D9 (`FR-
 | ISS-42 | US-15 | US-15: Quản lý sản phẩm và điều chỉnh tồn kho cho Manager | FR-13 | Could | Phan Tấn Tài (Backend) & Võ Quốc Phong (Frontend) | Tuần 5 (nếu kịp) |
 | ISS-43 | US-14 | US-14: Tích điểm khách hàng thân thiết khi đơn COMPLETED | FR-12 | Could | Phan Tấn Tài (Backend) & Võ Quốc Phong (Frontend) | Tuần 5 (nếu kịp) |
 | ISS-44 | US-16 | US-16: Lọc sản phẩm theo khoảng giá | FR-02 (lọc giá) | Could | Võ Quốc Phong (Frontend/Backend) | Tuần 5 (nếu kịp) |
-
----
-
-## 4. Bảng ánh xạ mã Issue cũ sang mã Issue mới
-
-| Mã cũ | Mã mới | Lý do thay đổi |
-|---|---|---|
-| ISS-01..ISS-08 | ISS-01..ISS-08 | Giữ nguyên mã và nội dung. |
-| — | ISS-10 | Bổ sung đầu việc rà soát `docs/` và kiểm chéo sơ đồ theo Task 4.2 (Tuần 2). |
-| ISS-09..ISS-12 | ISS-11..ISS-13, ISS-15 | Đánh số lại tịnh tiến sau khi chèn `ISS-10` và tách API chi tiết sản phẩm vào Sprint 1. |
-| ISS-13..ISS-14 | ISS-09, ISS-16 | Sắp xếp lại theo đúng tuần thực hiện (`ISS-09` ở Tuần 2, `ISS-16` ở Tuần 3). |
-| — | ISS-17 | Bổ sung đầu việc ghi nhận Sprint 1 Review & Retrospective và tạo tag `milestone-sprint1`. |
-| ISS-15 | ISS-14, ISS-18 | Tách phần Backend `GET /products/:id` sang Sprint 1 (`ISS-14` theo Task 4.3); giữ phần Frontend chọn size/topping ở Sprint 2 (`ISS-18`). |
-| ISS-16..ISS-23 | ISS-19..ISS-26 | Đánh số lại tịnh tiến và ghi rõ phần việc Backend (Phan Tấn Tài) vs Frontend (Võ Quốc Phong). |
-| ISS-24 | ISS-27, ISS-28 | Tách riêng Integration Test (`ISS-27` – Phan Tấn Tài) và E2E Test Playwright (`ISS-28` – Võ Quốc Phong). |
-| ISS-25 | ISS-29..ISS-33 | Tách nhỏ thành 5 issue độc lập để theo dõi tiến độ: `docker-compose.yml`, pipeline CD, Render Postgres production, Smoke test/rollback và `docs/deployment.md`. |
-| — | ISS-34..ISS-38 | Bổ sung các đầu việc bàn giao còn thiếu: `security-audit.md`, video demo, `release-notes.md`, `assignment-conformance.md` & kiểm tra nghiệm thu cuối kỳ. |
-| ISS-26..ISS-31 | ISS-39..ISS-44 | Đánh số lại tịnh tiến ở cuối bảng, giữ nguyên thứ tự ưu tiên Should/Could theo D9. |

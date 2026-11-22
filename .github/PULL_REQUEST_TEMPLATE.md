@@ -24,3 +24,4 @@
 - [ ] Đã cập nhật tài liệu liên quan nếu có thay đổi hành vi.
 - [ ] Đã ghi rõ lý do thay đổi nếu sửa yêu cầu, sơ đồ hoặc kiến trúc.
 - [ ] Không chứa secret, mật khẩu hoặc token thật; không có chữ `TODO` trong tài liệu.
+- [ ] Đã được thành viên còn lại review chéo (Approve).

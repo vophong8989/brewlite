@@ -15,10 +15,6 @@ build/
 *.tsbuildinfo
 .eslintcache
 
-# Prisma
-apps/api/prisma/dev.db
-apps/api/prisma/dev.db-journal
-
 # Environment variables (KHÔNG commit .env thật, giữ lại .env.example)
 .env
 .env.*
@@ -45,7 +41,6 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
-!.vscode/settings.json
 .idea/
 *.swp
 *.swo
