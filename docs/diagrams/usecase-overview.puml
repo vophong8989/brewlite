@@ -1,0 +1,137 @@
+@startuml
+' BrewLite - Use-case tổng quát
+' Phiên bản: 1.0
+' Ngày: 16/11/2026
+' Task 1.2 - Assignment 2
+
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 10
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 12
+skinparam actor {
+  BorderColor #344054
+  FontColor #101828
+  BackgroundColor #FFFFFF
+}
+skinparam usecase {
+  BorderColor #344054
+  BackgroundColor #E8F3FF
+  FontColor #101828
+  ArrowColor #475467
+}
+skinparam rectangle {
+  BorderColor #667085
+  BackgroundColor #FAFAFA
+}
+skinparam note {
+  BackgroundColor #FFF8E1
+  BorderColor #D0A443
+  FontColor #344054
+}
+
+title BrewLite - Sơ đồ use-case tổng quát
+
+actor "Customer" as Customer
+actor "Cashier\n(role STAFF)" as Cashier
+actor "Manager" as Manager
+actor "Payment Service" as PaymentService
+
+rectangle "BrewLite" {
+  usecase "UC-01\nĐặt và thanh toán\nđơn hàng" as UC01
+  usecase "UC-02\nThanh toán" as UC02
+  usecase "UC-17\nThanh toán Ví" as UC17
+  usecase "UC-18\nThanh toán Thẻ" as UC18
+
+  usecase "UC-03\nXem menu" as UC03
+  usecase "UC-04\nLọc theo danh mục" as UC04 #FFF2CC
+  usecase "UC-05\nLọc theo giá" as UC05 #E7E7E7
+  usecase "UC-06\nXem chi tiết\nsản phẩm" as UC06
+  usecase "UC-07\nQuản lý giỏ hàng" as UC07
+  usecase "UC-08\nĐăng ký" as UC08
+  usecase "UC-09\nĐăng nhập" as UC09
+
+  usecase "UC-10\nXem lịch sử đơn" as UC10
+  usecase "UC-11\nTheo dõi đơn" as UC11
+  usecase "UC-12\nXử lý đơn và\ncập nhật trạng thái" as UC12
+
+  usecase "UC-13\nTự hủy đơn quá hạn" as UC13 #FFF2CC
+  usecase "UC-14\nÁp mã khuyến mãi" as UC14 #FFF2CC
+  usecase "UC-15\nTích điểm" as UC15 #E7E7E7
+  usecase "UC-16\nQuản lý sản phẩm\nvà tồn kho" as UC16 #E7E7E7
+}
+
+Customer -- UC03
+Customer -- UC06
+Customer -- UC07
+Customer -- UC08
+Customer -- UC09
+Customer -- UC01
+Customer -- UC10
+Customer -- UC11
+
+Cashier -- UC09
+Cashier -- UC12
+Manager -- UC09
+Manager -- UC12
+Manager -- UC16
+PaymentService -- UC02
+
+UC01 ..> UC02 : <<include>>
+UC04 ..> UC03 : <<extend>>
+UC05 ..> UC03 : <<extend>>
+UC14 ..> UC01 : <<extend>>
+UC17 --|> UC02
+UC18 --|> UC02
+
+note right of UC01
+  Checkout tạo đơn PENDING,
+  sau đó thanh toán mô phỏng.
+  Thanh toán thất bại không
+  rollback đơn đã tạo.
+end note
+
+note right of UC02
+  WALLET hoặc CARD.
+  Có Idempotency-Key.
+  Payment Service chỉ mô phỏng.
+end note
+
+note bottom of UC04
+  Should - FR-02
+end note
+note bottom of UC05
+  Could - FR-02
+  Không tìm theo tên.
+end note
+note bottom of UC13
+  Should - FR-10
+  Lazy tại GET /orders,
+  GET /orders/:id,
+  POST /payments.
+end note
+note bottom of UC14
+  Should - FR-11
+end note
+note bottom of UC15
+  Could - FR-12
+  Kích hoạt khi COMPLETED.
+end note
+note bottom of UC16
+  Could - FR-13
+  Chỉ MANAGER.
+end note
+
+legend bottom
+  |= Màu nền |= Mức ưu tiên |
+  |<#E8F3FF> Xanh nhạt | Must |
+  |<#FFF2CC> Vàng nhạt | Should |
+  |<#E7E7E7> Xám nhạt | Could |
+  UC-13 (FR-10) là xử lý nội bộ khi đọc đơn/thanh toán.
+  UC-15 (FR-12) được kích hoạt khi đơn COMPLETED.
+  Hai quy tắc này không phải <<extend>> của actor.
+  Không có Payment Gateway hoặc Shipping Company.
+endlegend
+@enduml

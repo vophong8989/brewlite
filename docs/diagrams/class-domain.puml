@@ -1,0 +1,215 @@
+@startuml
+' BrewLite - Task 2.3 - Domain Class Diagram
+' Nguồn: srs.md v1.0; uc-01-checkout.md v1.0; sequence-checkout.puml
+' UTF-8
+
+title BrewLite - Task 2.3: Domain Class Diagram
+left to right direction
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FFFFFF
+skinparam packageStyle rectangle
+skinparam class {
+  BackgroundColor #E8F3FF
+  BorderColor #46607A
+  ArrowColor #58677A
+}
+
+package "Người dùng" {
+  class User {
+    +id: UUID
+    +name: String
+    +email: String
+    +passwordHash: String
+    +role: Role
+  }
+  enum Role {
+    CUSTOMER
+    STAFF
+    MANAGER
+  }
+}
+
+package "Danh mục sản phẩm" {
+  class Product {
+    +id: UUID
+    +name: String
+    +description: String
+    +basePrice: BigInt
+    +imageUrl: String
+    +category: String
+    +available: Boolean
+    +stock: Int
+  }
+  class ProductSize {
+    +size: Size
+    +extraPrice: BigInt
+  }
+  class Topping {
+    +id: UUID
+    +name: String
+    +price: BigInt
+  }
+  enum Size {
+    S
+    M
+    L
+  }
+}
+
+package "Đơn hàng và thanh toán" {
+  class Order {
+    +id: UUID
+    +status: OrderStatus
+    +subtotal: BigInt
+    +discountAmount: BigInt
+    +totalAmount: BigInt
+    +createdAt: DateTime
+  }
+  class OrderItem {
+    +id: UUID
+    +nameSnapshot: String
+    +quantity: Int
+    +size: Size
+    +note: String
+    +unitPrice: BigInt
+    +lineTotal: BigInt
+  }
+  class OrderItemTopping {
+    +id: UUID
+    +nameSnapshot: String
+    +priceSnapshot: BigInt
+  }
+  class Payment {
+    +id: UUID
+    +method: PaymentMethod
+    +status: PaymentStatus
+    +idempotencyKey: String
+    +requestHash: String
+    +createdAt: DateTime
+    +responseStatusCode: Int
+    +responseBody: JSON
+  }
+  enum OrderStatus {
+    PENDING
+    PAID
+    PREPARING
+    READY
+    COMPLETED
+    CANCELLED
+  }
+  enum PaymentStatus {
+    SUCCESS
+    FAILED
+  }
+  enum PaymentMethod {
+    WALLET
+    CARD
+  }
+}
+
+package "Mở rộng (Should / Could)" {
+  class Promotion <<Should: FR-11>> #FFF2CC {
+    +id: UUID
+    +code: String
+    +type: PromotionType
+    +value: BigInt
+    +expiresAt: DateTime
+  }
+  enum PromotionType <<Should: FR-11>> {
+    FIXED
+    PERCENT
+  }
+  class LoyaltyTransaction <<Could: FR-12>> #F0E8FF {
+    +id: UUID
+    +points: Int
+  }
+}
+
+User "1" -- "0..*" Order : đặt / sở hữu >
+Order "1" *-- "1..*" OrderItem : chứa >
+OrderItem "0..*" --> "1" Product : tham chiếu sản phẩm >
+Product "1" *-- "1..*" ProductSize : có mức giá size >
+OrderItem "1" *-- "0..*" OrderItemTopping : lưu topping đã chọn >
+OrderItemTopping "0..*" --> "1" Topping : tham chiếu topping >
+Product "0..*" -- "0..*" Topping : topping cho phép >
+Order "1" *-- "0..*" Payment : các lần thanh toán >
+Order "0..*" --> "0..1" Promotion : áp dụng mã >
+User "1" -- "0..*" LoyaltyTransaction : nhận điểm >
+Order "1" -- "0..1" LoyaltyTransaction : ghi điểm một lần >
+
+
+note right of User
+  name: 1..50 ký tự; email UNIQUE.
+  passwordHash: bcrypt, không lưu plaintext.
+  Đăng ký công khai chỉ tạo CUSTOMER.
+  STAFF/MANAGER được seed từ biến môi trường.
+end note
+
+note bottom of Product
+  Tồn kho chỉ theo Product; size/topping
+  không làm thay đổi đơn vị tồn kho.
+  Product liên kết các topping được phép chọn.
+  Trừ kho trong transaction tạo Order PENDING.
+  Thanh toán FAILED không hoàn kho.
+  FR-13 (Could): ngừng bán bằng available,
+  không xóa bản ghi.
+end note
+
+note bottom of OrderItem
+  quantity: số nguyên 1..20; note tối đa 200 ký tự.
+  unitPrice = basePrice + size.extraPrice
+    + SUM(topping.price), do server tính.
+  lineTotal = unitPrice * quantity.
+  nameSnapshot lưu tên sản phẩm lúc đặt.
+  Lưu giá tại thời điểm đặt, không đọc lại giá menu.
+end note
+
+note bottom of OrderItemTopping
+  Lưu snapshot tên/giá topping khi đặt
+  để giá lịch sử không đổi nếu menu thay đổi.
+  Đây là quyết định thiết kế hỗ trợ FR-03/FR-06.
+end note
+
+note bottom of Order
+  subtotal = SUM(OrderItem.lineTotal).
+  totalAmount = subtotal - discountAmount.
+  Không có FR-11: discountAmount = 0.
+  Mỗi đơn tối đa một Promotion (nếu FR-11).
+  Thời gian lưu UTC, xuất ISO 8601.
+  CANCELLED chỉ được kích hoạt nếu có FR-10.
+end note
+
+note right of Payment
+  idempotencyKey UNIQUE; lưu requestHash.
+  Cùng key + body: trả lại HTTP/body đã lưu
+  (SUCCESS 200 hoặc FAILED 402), không ghi Payment mới.
+  Cùng key khác body: 422 IDEMPOTENCY_KEY_REUSED.
+  Payment SUCCESS + Order PAID ghi cùng transaction.
+  Payment FAILED: Order vẫn PENDING, kho giữ nguyên.
+  responseStatusCode/responseBody là dữ liệu kỹ thuật
+  cần để phát lại chính xác kết quả idempotency.
+end note
+
+note right of Promotion
+  Chỉ là mô hình mở rộng FR-11 (Should).
+  FIXED: VND; PERCENT: tỷ lệ phần trăm.
+  Mã phải còn hạn; giảm không vượt subtotal.
+  Giảm theo phần trăm làm tròn xuống VND.
+end note
+
+note bottom of LoyaltyTransaction
+  Chỉ là mô hình mở rộng FR-12 (Could).
+  points = floor(Order.totalAmount / 10000)
+  khi Order chuyển COMPLETED.
+  UNIQUE(orderId): một đơn cộng điểm tối đa một lần.
+end note
+
+legend bottom
+  |= Màu nền |= Phạm vi |
+  |<#E8F3FF> Xanh nhạt | Must - domain cốt lõi |
+  |<#FFF2CC> Vàng nhạt | Should - FR-11 Promotion |
+  |<#F0E8FF> Tím nhạt | Could - FR-12 LoyaltyTransaction |
+endlegend
+@enduml

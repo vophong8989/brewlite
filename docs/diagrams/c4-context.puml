@@ -1,0 +1,25 @@
+@startuml
+' BrewLite - C4 Level 1 - System Context
+' Chỉ thể hiện người sử dụng và ranh giới hệ thống; không vẽ module nội bộ.
+title BrewLite - C4 Level 1: System Context
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam rectangleBackgroundColor #E8F3FF
+skinparam rectangleBorderColor #53677B
+skinparam defaultFontName "DejaVu Sans"
+
+actor "Customer" as C
+actor "Cashier (STAFF)" as S
+actor "Manager" as M
+rectangle "BrewLite\n[Software System]" as SYS #E8F3FF
+C --> SYS : Xem menu, đặt đơn, thanh toán, theo dõi
+S --> SYS : Đăng nhập, xem hàng đợi, xử lý đơn
+M --> SYS : Xử lý đơn; quản lý sản phẩm (Could)
+note bottom of SYS
+  Thanh toán WALLET/CARD được mô phỏng bên trong BrewLite.
+  Payment Service không phải hệ thống ngoài.
+  Không có Payment Gateway hoặc Shipping Company.
+  Xem chi tiết module payments ở C4 Level 2 / bảng Level 3.
+end note
+@enduml
