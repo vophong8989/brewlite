@@ -4,6 +4,7 @@ node_modules/
 .pnp.js
 
 # Next.js
+.next/
 apps/web/.next/
 apps/web/out/
 next-env.d.ts
@@ -12,23 +13,24 @@ next-env.d.ts
 dist/
 build/
 *.tsbuildinfo
+.eslintcache
 
 # Prisma
 apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
 
-# Environment variables (KHÔNG commit .env thật)
+# Environment variables (KHÔNG commit .env thật, giữ lại .env.example)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-*.env
+.env.*
+!.env.example
 
 # Testing & Coverage
 coverage/
 playwright-report/
 test-results/
+
+# Docker local volumes / overrides
+docker-compose.override.yml
 
 # Logs
 logs/
