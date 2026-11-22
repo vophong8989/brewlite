@@ -1,0 +1,268 @@
+@startuml
+' BrewLite - Task 2.1 - Activity end-to-end
+' Nguồn: srs.md, uc-01-checkout.md, sequence-checkout.puml
+title BrewLite - Activity Diagram: Từ chọn món đến COMPLETED
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #E8F3FF
+  BorderColor #475467
+  DiamondBackgroundColor #FFFFFF
+  DiamondBorderColor #475467
+  ArrowColor #475467
+}
+skinparam defaultFontName Arial
+
+|Customer|
+start
+:Xem menu;
+|Next.js UI|
+:Hiển thị loading;
+|NestJS API|
+:GET /products;
+|Next.js UI|
+if (Menu tải thành công?) then (Có)
+  if (Danh sách rỗng?) then (Có)
+    :Hiển thị empty state;
+    |Customer|
+    :Không có món để chọn;
+    stop
+  else (Không)
+    :Hiển thị danh sách sản phẩm;
+  endif
+else (Lỗi)
+  :Hiển thị error state;
+  |Customer|
+  :Không thể xem menu;
+  stop
+endif
+
+|Customer|
+:Xem chi tiết sản phẩm;
+:Chọn size S/M/L, topping;
+:Thêm vào giỏ;
+|Next.js UI|
+:Lưu giỏ tại client;\nTính tổng tiền hiển thị;
+|Customer|
+:Sửa số lượng hoặc xóa món nếu cần;
+|Next.js UI|
+:Cập nhật tổng tiền và giỏ client;
+
+while (Giỏ rỗng?) is (Có)
+  :Không cho đặt đơn;\nHiển thị giỏ rỗng;
+  |Customer|
+  :Chọn thêm sản phẩm từ menu;
+  |Next.js UI|
+  :Thêm sản phẩm vào giỏ;
+endwhile (Không)
+
+note right
+  Giá chính thức do NestJS API tính lại.
+  FR-10/FR-11 nếu triển khai: xem srs.md.
+end note
+
+while (Chưa tạo đơn thành công?) is (Có)
+  |Customer|
+  :Nhấn Đặt đơn;
+  |Next.js UI|
+  :Kiểm tra giỏ, quantity 1..20,\nsize S/M/L;
+  if (Dữ liệu client hợp lệ?) then (Có)
+    if (Có JWT CUSTOMER hợp lệ?) then (Có)
+    else (Không)
+      :Hiển thị yêu cầu xác thực;
+      |Customer|
+      if (Chưa có tài khoản?) then (Có)
+        :Nhập thông tin đăng ký;
+        |NestJS API|
+        :POST /auth/register;
+        if (Đăng ký hợp lệ?) then (201)
+          |Next.js UI|
+          :Thông báo đăng ký thành công;
+        else (400/409)
+          |Next.js UI|
+          :Thông báo lỗi đăng ký;
+          |Customer|
+          :Sửa thông tin hoặc dừng;
+          stop
+        endif
+      endif
+      |Customer|
+      :Nhập thông tin đăng nhập;
+      |NestJS API|
+      :POST /auth/login;
+      if (Đăng nhập hợp lệ?) then (200)
+        |Next.js UI|
+        :Lưu phiên xác thực;\nQuay lại giỏ hàng;
+      else (401)
+        |Next.js UI|
+        :Thông báo sai thông tin đăng nhập;
+        |Customer|
+        :Thử đăng nhập sau;
+        stop
+      endif
+    endif
+
+    |Next.js UI|
+    :Gửi POST /orders;
+    |NestJS API|
+    :Kiểm tra JWT, role CUSTOMER,\nvalidate body;
+    if (Thiếu/sai/hết JWT?) then (401)
+      |Next.js UI|
+      :Yêu cầu đăng nhập lại;\nQuay về giỏ;
+    elseif (Role STAFF/MANAGER?) then (403)
+      |Next.js UI|
+      :Thông báo không đủ quyền;
+      stop
+    elseif (Body không hợp lệ?) then (400)
+      |Next.js UI|
+      :Hiển thị VALIDATION_ERROR;\nCho sửa giỏ;
+    else (Hợp lệ)
+      |NestJS API|
+      :Kiểm tra sản phẩm và tồn kho;\nTính lại giá ở server;
+      if (Sản phẩm không tồn tại?) then (404)
+        |Next.js UI|
+        :Hiển thị PRODUCT_NOT_FOUND;\nCho cập nhật giỏ;
+      elseif (Không đủ hàng?) then (409)
+        |NestJS API|
+        :Rollback; không tạo đơn;\nKhông trừ kho;
+        |Next.js UI|
+        :Hiển thị OUT_OF_STOCK;\nCho chỉnh số lượng;
+      else (Đủ hàng)
+        |NestJS API|
+        :Transaction tạo Order PENDING,\nOrderItem và trừ tồn kho;\nCOMMIT;
+        :HTTP 201;
+        |Next.js UI|
+        :Hiển thị mã đơn, tổng tiền,\ntrạng thái PENDING;
+        break
+      endif
+    endif
+  else (Không)
+    :Hiển thị lỗi validate;
+  endif
+  |Customer|
+  :Chỉnh giỏ hoặc xác thực lại;
+endwhile (Không)
+
+|Customer|
+:Chọn WALLET hoặc CARD;
+while (Đơn còn PENDING và muốn thanh toán?) is (Có)
+  |Next.js UI|
+  :Tạo Idempotency-Key mới\ncho lần thử mới;
+  :Gửi POST /payments;
+  |NestJS API|
+  :Kiểm tra JWT, role, key,\nquyền sở hữu đơn;
+  if (JWT thiếu/sai/hết hạn?) then (401)
+    |Next.js UI|
+    :Yêu cầu đăng nhập lại;\nGiữ đơn PENDING;
+    |Customer|
+    :Đăng nhập lại rồi trở về thanh toán;
+  elseif (Role không phải CUSTOMER?) then (403)
+    |Next.js UI|
+    :Thông báo không đủ quyền;
+    stop
+  elseif (Thiếu Idempotency-Key?) then (400)
+    |Next.js UI|
+    :Thông báo lỗi yêu cầu;\nGiữ đơn PENDING;
+  else (Hợp lệ)
+    |NestJS API|
+    if (Gửi lại cùng key và body?) then (Có)
+      :Trả đúng kết quả đã lưu;\nKhông tạo Payment mới;
+    elseif (Cùng key, body khác?) then (422)
+      |Next.js UI|
+      :Hiển thị IDEMPOTENCY_KEY_REUSED;
+      stop
+    elseif (Đơn không tồn tại/khác chủ?) then (404)
+      |Next.js UI|
+      :Thông báo không tìm thấy đơn;
+      stop
+    elseif (Đơn không còn PENDING?) then (409)
+      |Next.js UI|
+      :Hiển thị ORDER_NOT_PAYABLE;
+      stop
+    else (Yêu cầu mới hợp lệ)
+      |Payment Service|
+      :Mô phỏng kết quả WALLET/CARD;
+      |NestJS API|
+      if (SUCCESS?) then (Có)
+        :Lưu Payment SUCCESS;\nChuyển PENDING sang PAID;\nTrong cùng transaction;
+        :HTTP 200;
+      else (FAILED)
+        :Lưu Payment FAILED;\nGiữ đơn PENDING;\nTrong cùng transaction;
+        :HTTP 402 PAYMENT_DECLINED;
+      endif
+    endif
+    |Next.js UI|
+    if (Kết quả thanh toán SUCCESS?) then (Có)
+      :Thông báo thành công;\nMở màn hình theo dõi đơn;
+      break
+    else (FAILED/402)
+      :Thông báo thanh toán thất bại;\nKho vẫn đã trừ;
+      |Customer|
+      if (Thử lại bằng key mới?) then (Có)
+        :Chọn phương thức thanh toán;
+      else (Không)
+        :Kết thúc khi đơn còn PENDING;
+        stop
+      endif
+    endif
+  endif
+endwhile (Không)
+
+fork
+  |Next.js UI|
+  :Mở màn hình theo dõi đơn;
+  repeat
+    :GET /orders/:id;
+    if (Trạng thái READY?) then (Có)
+      :Thông báo đồ uống sẵn sàng;
+    endif
+    if (COMPLETED/CANCELLED hoặc rời màn hình?) then (Có)
+      :Dừng polling;
+    else (Không)
+      :Chờ 5 giây;
+    endif
+  repeat while (Chưa dừng polling?) is (Có) not (Không)
+  |Customer|
+  :Xem kết quả theo dõi;
+fork again
+  |Cashier/Manager|
+  :Đăng nhập (UC-09);
+  |NestJS API|
+  :POST /auth/login;
+  if (Thông tin đăng nhập đúng?) then (HTTP 200)
+    |Cashier/Manager|
+    :Xem hàng đợi đơn;
+    :Chọn đơn PAID;
+    |NestJS API|
+    :PATCH /staff/orders/:id/status;
+    if (Chuyển trạng thái hợp lệ?) then (Có)
+      :PAID -> PREPARING;
+    else (HTTP 409)
+      :INVALID_STATUS_TRANSITION;
+      |Cashier/Manager|
+      :Chọn lại trạng thái hợp lệ;
+      |NestJS API|
+      :PAID -> PREPARING;
+    endif
+    |Cashier/Manager|
+    :Chuẩn bị đồ uống;
+    :Xác nhận đã sẵn sàng;
+    |NestJS API|
+    :PATCH /staff/orders/:id/status\nPREPARING -> READY;
+    |Cashier/Manager|
+    :Giao đồ uống cho Customer;
+    :Xác nhận khách nhận món;
+    |NestJS API|
+    :PATCH /staff/orders/:id/status\nREADY -> COMPLETED;
+  else (HTTP 401)
+    |Cashier/Manager|
+    :Thông báo sai thông tin đăng nhập\nKhông xử lý đơn;
+    stop
+  endif
+end fork
+|Customer|
+:Kết thúc theo dõi hoặc nhận đồ uống;
+stop
+
+@enduml

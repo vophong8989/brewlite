@@ -1,0 +1,32 @@
+@startuml
+' BrewLite - C4 Level 2 - Runtime Containers
+' Không dùng node Vercel/Render như ranh giới C4; nền tảng triển khai ở Task 3.2.
+title BrewLite - C4 Level 2: Container
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultFontName "DejaVu Sans"
+actor "Customer / Cashier / Manager" as U
+rectangle "Browser / PWA\n(thiết bị người dùng)" as BROWSER #F1F5F9
+rectangle "BrewLite [Software System]" as BREWLITE {
+  component "ARCH-WEB\nNext.js Web/PWA\n(host Vercel)" as WEB #E8F3FF
+  component "ARCH-API\nNestJS REST API\n(host Render)" as API #E8F3FF
+  database "ARCH-DB\nPostgreSQL\n(Render, Internal URL)" as DB #E8F3FF
+}
+cloud "ARCH-CI / ARCH-REG\nGitHub Actions / GHCR\n(hỗ trợ, không ở runtime)" as CI #F1F5F9
+U --> BROWSER : Sử dụng ứng dụng
+BROWSER --> WEB : Tải ứng dụng qua HTTPS 443
+BROWSER --> API : REST HTTPS 443; JWT Bearer\nCORS allowlist
+API --> DB : Internal URL / TCP 5432
+CI ..> WEB : Triển khai frontend
+CI ..> API : Build, deploy, smoke test
+note bottom of API
+  ARCH-PAY = module payments mô phỏng bên trong NestJS.
+  Không có Payment Gateway thật hoặc payment service độc lập.
+end note
+note bottom of DB
+  Production: không bật External access.
+  Nếu đổi Neon, dùng DATABASE_URL đúng môi trường.
+end note
+@enduml

@@ -1,0 +1,174 @@
+@startuml
+' BrewLite - Task 2.2, UC-01 Checkout
+' Nguồn: srs.md v1.0, uc-01-checkout.md v1.0
+' UTF-8
+
+title BrewLite - UC-01: Đặt và thanh toán đơn hàng
+hide footbox
+autonumber
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam sequence {
+  ArrowColor #475467
+  LifeLineBorderColor #667085
+  ParticipantBorderColor #344054
+  ParticipantBackgroundColor #E8F3FF
+  ParticipantFontColor #101828
+  GroupBorderColor #98A2B3
+  GroupBackgroundColor #F8FAFC
+}
+
+actor "Customer" as C
+participant "Next.js UI" as UI
+participant "NestJS API" as API
+database "Database" as DB
+participant "Payment Service" as PS
+
+C -> UI : Xác nhận giỏ hàng và nhấn Đặt đơn
+activate UI
+UI -> UI : Kiểm tra giỏ không rỗng, quantity 1..20, size S/M/L
+note over UI,API
+  Tiền VND là số nguyên; UUID cho ID.
+  JWT chứa sub, role; note tối đa 200 ký tự.
+  FR-10/FR-11 nếu triển khai: xem uc-01-checkout.md.
+end note
+
+group Tạo đơn: POST /orders
+  UI -> API : POST /orders\nAuthorization: Bearer <JWT>\nBody: items (productId, size, toppings, quantity, note)
+  activate API
+  API -> API : Kiểm tra JWT và role CUSTOMER; validate body
+  alt Thiếu/sai/hết hạn JWT (EX-01)
+    API --> UI : HTTP 401
+    UI --> C : Yêu cầu đăng nhập lại
+  else STAFF/MANAGER (EX-02)
+    API --> UI : HTTP 403
+    UI --> C : Thông báo không đủ quyền
+  else Giỏ/dữ liệu sai (EX-03)
+    API --> UI : HTTP 400 VALIDATION_ERROR
+    UI --> C : Hiển thị lỗi để sửa giỏ
+  else Dữ liệu hợp lệ
+    API -> DB : BEGIN TRANSACTION
+    activate DB
+    API -> DB : Đọc sản phẩm, size, topping và tồn kho
+    DB --> API : Dữ liệu giá và tồn kho
+    alt Sản phẩm không tồn tại (EX-04)
+      API -> DB : ROLLBACK
+      DB --> API : Đã rollback
+      API --> UI : HTTP 404 PRODUCT_NOT_FOUND
+      UI --> C : Sản phẩm không tồn tại, cập nhật giỏ
+    else Hết hàng / không đủ kho (EX-05)
+      API -> DB : ROLLBACK
+      DB --> API : Đã rollback
+      API --> UI : HTTP 409 OUT_OF_STOCK
+      UI --> C : Hết hàng, chỉnh số lượng\nKhông có đơn mới
+    else Đủ hàng
+      API -> API : Tính lại unitPrice, lineTotal, totalAmount\nKhông tin giá client gửi
+      API -> DB : INSERT Order(PENDING), OrderItem\nTrừ tồn kho theo sản phẩm trong transaction
+      DB --> API : Đã ghi dữ liệu
+      API -> DB : COMMIT
+      DB --> API : Thành công
+      API --> UI : HTTP 201, orderId(UUID), PENDING, totalAmount
+      UI --> C : Hiển thị mã đơn, tổng tiền và PENDING
+    end
+    deactivate DB
+  end
+  deactivate API
+end
+
+note over API,DB
+  Kho trừ ngay khi tạo đơn PENDING.
+  Thanh toán FAILED không hoàn kho.
+  Transaction lỗi: không tạo đơn, không trừ kho một phần.
+end note
+
+opt Chỉ khi POST /orders đã trả 201
+  C -> UI : Chọn WALLET hoặc CARD (ALT-01)\nXác nhận thanh toán
+  loop Lần thử mới khi đơn PENDING; dừng khi SUCCESS hoặc không retry (ALT-02)
+    UI -> UI : Tạo Idempotency-Key mới cho lần thử này
+    group Thanh toán: POST /payments
+      UI -> API : POST /payments\nAuthorization: Bearer <JWT>\nIdempotency-Key: <key>\nBody: {orderId, method, simulate}
+      activate API
+      API -> API : Kiểm tra JWT, role CUSTOMER và header
+      alt JWT thiếu/sai/hết hạn (EX-01)
+        API --> UI : HTTP 401
+        UI --> C : Đăng nhập lại; không tạo đơn lần nữa
+      else STAFF/MANAGER (EX-02)
+        API --> UI : HTTP 403
+        UI --> C : Không đủ quyền
+      else Thiếu Idempotency-Key (EX-07)
+        API --> UI : HTTP 400
+        UI --> C : Yêu cầu thử lại với header hợp lệ
+      else Có key và quyền hợp lệ
+        API -> DB : Tra key và request hash đã lưu
+        activate DB
+        DB --> API : Kết quả tra cứu
+        alt Cùng key và cùng body đã lưu (ALT-03)
+          API --> UI : Trả lại đúng HTTP/body đã lưu (200 hoặc 402)
+          note over API,PS : Không gọi Payment Service lần nữa
+        else Cùng key, body khác (EX-08)
+          API --> UI : HTTP 422 IDEMPOTENCY_KEY_REUSED
+        else Key chưa được xử lý
+          API -> DB : Kiểm tra orderId thuộc Customer và trạng thái đơn
+          DB --> API : Thông tin đơn và trạng thái
+          alt Đơn không tồn tại hoặc của người khác (EX-10)
+            API --> UI : HTTP 404
+          else Đơn không còn PENDING (EX-09)
+            API --> UI : HTTP 409 ORDER_NOT_PAYABLE
+          else Đơn PENDING của Customer
+            API -> PS : Thanh toán mô phỏng (WALLET/CARD)\nKết quả SUCCESS/FAILED
+            note right of PS
+              PAYMENT_ALLOW_SIMULATE=true:
+              cho phép simulate SUCCESS/FAILED.
+              Nếu false: bỏ qua simulate,
+              mặc định SUCCESS.
+            end note
+            alt Kết quả SUCCESS (MAIN)
+              PS --> API : SUCCESS
+              note over API,DB : Ghi Payment và cập nhật Order trong cùng một transaction
+              API -> DB : BEGIN TRANSACTION
+              API -> DB : Ghi Payment SUCCESS, lưu key/hash/kết quả\nCập nhật Order PENDING -> PAID
+              API -> DB : COMMIT
+              DB --> API : Đã lưu
+              API --> UI : HTTP 200 SUCCESS, orderStatus=PAID
+            else Kết quả FAILED (EX-06 / ALT-02)
+              PS --> API : FAILED
+              note over API,DB : Ghi Payment và cập nhật Order trong cùng một transaction
+              API -> DB : BEGIN TRANSACTION
+              API -> DB : Ghi Payment FAILED, lưu key/hash/kết quả\nGiữ Order PENDING
+              API -> DB : COMMIT
+              DB --> API : Đã lưu
+              API --> UI : HTTP 402 PAYMENT_DECLINED
+            end
+          end
+        end
+        deactivate DB
+      end
+      deactivate API
+    end
+
+    alt UI nhận 200 SUCCESS
+      UI --> C : Xác nhận PAID; chuyển sang màn hình theo dõi
+    else UI nhận 402 PAYMENT_DECLINED
+      UI --> C : Báo thất bại, cho thử lại bằng key mới
+      note over C,UI : Chỉ thử lại với key mới khi còn PENDING
+    else Không nhận được phản hồi / cold start (EX-13)
+      UI --> C : Thông báo đang kiểm tra, không kết luận thất bại
+      opt Gửi lại yêu cầu để truy hồi kết quả
+        UI -> API : POST /payments với cùng key và cùng body
+        activate API
+        API -> DB : Tra kết quả đã lưu theo key và request hash
+        activate DB
+        DB --> API : Kết quả trước đó nếu đã lưu
+        deactivate DB
+        API --> UI : HTTP/body đã lưu nếu có
+        deactivate API
+      end
+    else 401/403/400/404/409/422
+      UI --> C : Thông báo lỗi tương ứng; không tự tạo Payment mới
+    end
+  end
+end
+
+deactivate UI
+@enduml
