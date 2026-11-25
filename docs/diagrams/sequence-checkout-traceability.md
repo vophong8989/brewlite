@@ -30,3 +30,5 @@
 | EX-13: GET /health trả 503 khi mất DB | Kiểm tra health không nằm trong trình tự chính của UC-01; chỉ vẽ tác động mất phản hồi/cold start | NFR-03-AC1 |
 
 Không đặt tên mới cho mã `code` của HTTP 401/403/404 đơn hoặc 400 thiếu Idempotency-Key vì SRS chưa định danh.
+
+**Dự thảo cập nhật 25/11/2026:** key thanh toán có phạm vi theo user; kiểm tra quyền sở hữu, replay trước xét trạng thái yêu cầu mới, cập nhật PAID có điều kiện để tránh hai SUCCESS. Xem [ADR-007](../architecture/adr/007-order-payment-design.md).

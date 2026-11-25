@@ -1,8 +1,8 @@
 # BrewLite – API Contract
 
-**Phiên bản:** 1.0 – đề xuất chốt Sprint 1  
+**Phiên bản:** 1.1 – dự thảo cập nhật Sprint 2
 **Ngày soạn:** 20/11/2026  
-**Trạng thái:** BẢN ĐỀ XUẤT, cần Phong duyệt trước khi merge hoặc coi là hợp đồng chính thức  
+**Trạng thái:** BẢN ĐỀ XUẤT 25/11/2026, cần hai thành viên duyệt; không chứng minh code/test đã chạy.
 **Nguồn đối chiếu:** `docs/requirements/srs.md` (mục 3, 4, 6), `docs/requirements/uc-01-checkout.md`, `docs/diagrams/class-domain.puml`, `docs/architecture/architecture.md`, `BrewLite-Ke-hoach-nhom-v3` (mục 7).  
 **Phân biệt:** Các cổng local, category slug, nội dung seed, timeout 75 giây và quy ước mã test dưới đây là **đề xuất phối hợp Sprint 1**, không phải hành vi được SRS đặt tên cụ thể.
 
@@ -15,11 +15,11 @@
 | Frontend environment | `NEXT_PUBLIC_API_URL=http://localhost:3001` ở local; production dùng URL HTTPS API thực tế. |
 | Backend environment | `PORT=3001`, `CORS_ORIGIN=http://localhost:3000` (các origin phân tách dấu phẩy nếu cần); không hardcode địa chỉ production. |
 | ID | Chuỗi UUID. |
-| Giá tiền | JSON là số nguyên VND, không gửi dấu phân cách hàng nghìn. Sprint 1 lưu `basePrice`, `extraPrice`, `price` bằng Prisma `Int` khi nằm trong phạm vi số nguyên 32-bit; nếu dùng `BigInt` cho các khoản tiền lớn hơn thì backend bắt buộc chuyển đổi có kiểm tra trước khi JSON serialize (không trả `bigint` thô). |
+| Giá tiền | JSON là số nguyên VND, không gửi dấu phân cách hàng nghìn. Mọi khoản tiền lưu bằng Prisma `Int` không âm, tối đa 2.147.483.647; kiểm tra kết quả cộng/nhân. Không trả BigInt thô trong JSON. |
 | Thời gian | ISO 8601 UTC, ví dụ `2026-11-20T08:00:00.000Z`. |
-| Xác thực | `Authorization: Bearer <JWT>`; JWT chứa `sub`, `role`. |
+| Xác thực | `Authorization: Bearer <JWT>`; JWT HS256 chứa `sub`, `role`, `iat`, `exp`; thời hạn mặc định 1h, role hiện tại lấy từ DB mỗi request cần xác thực. |
 | Role | `CUSTOMER`, `STAFF`, `MANAGER`. |
-| Lỗi HTTP | JSON `{ "statusCode": number, "error": string, "message": string, "code": string }` khi SRS quy định `code`; không tạo tên mã mới cho lỗi chưa được định danh. |
+| Lỗi HTTP | JSON `{ "statusCode": number, "error": string, "message": string, "code": string }` cho các mã lỗi đã định danh. Các lỗi chưa có mã (ví dụ 500) giữ format hiện hành cho tới khi nhóm chốt; `/health` có body riêng theo mục 3.3 nếu được duyệt. |
 | Content type | JSON UTF-8 cho API trả JSON. |
 | `available` trong API đọc | Server tính `Product.available && Product.stock > 0`; **không trả trường `stock`** trong public menu/chi tiết. Đây là quy tắc phối hợp Sprint 1 được nhóm đề xuất. |
 | `imageUrl` | `string | null`. Đường dẫn tương đối `/images/menu/<slug>.svg` được web phục vụ từ `apps/web/public`, backend chỉ lưu và trả lại chuỗi đường dẫn. |
@@ -37,7 +37,7 @@
 | S1 | GET | `/products` | Public | Query `category` tùy chọn (FR-02 Should; chưa dùng S1) | 200 mảng sản phẩm | Không có sản phẩm: `[]` |
 | S1 | GET | `/products/:id` | Public | `id` UUID | 200 sản phẩm + sizes + toppings | 404 `PRODUCT_NOT_FOUND`; UUID sai: 400 `VALIDATION_ERROR` (quy tắc kiểm tra thống nhất được đề xuất) |
 | S2 | POST | `/auth/register` | Public | `name`, `email`, `password` | 201 `{id,email,name,role}` | 400 `VALIDATION_ERROR`, 409 `EMAIL_TAKEN` |
-| S2 | POST | `/auth/login` | Public | Thông tin đăng nhập | 200 `{accessToken,user}` | 401 `INVALID_CREDENTIALS` |
+| S2 | POST | `/auth/login` | Public | `email`, `password` | 200 `{accessToken,user}` | 400 `VALIDATION_ERROR` nếu body sai cấu trúc; 401 `INVALID_CREDENTIALS` nếu thông tin không đúng |
 | S2 | POST | `/orders` | CUSTOMER | JWT + giỏ với sản phẩm, size, topping, số lượng; mã khuyến mãi nếu FR-11 | 201 đơn `PENDING` kèm items, discountAmount, totalAmount, createdAt | 400, 401, 403, 404 `PRODUCT_NOT_FOUND`, 409 `OUT_OF_STOCK`; 422 `PROMOTION_INVALID` nếu FR-11 |
 | S2 | GET | `/orders` | CUSTOMER | JWT | 200 đơn của chính người dùng, mới nhất trước | 401; 403 nếu role không hợp lệ |
 | S2 | GET | `/orders/:id` | CUSTOMER/chủ đơn | JWT, id UUID | 200 chi tiết đơn và payments | 401, 404 (cả khi đơn thuộc người khác) |
@@ -148,19 +148,31 @@ Văn bản `error` và `message` trên là **ví dụ trình bày**, không ph�
 
 ## 4. Quy tắc xuyên suốt cho Sprint 2
 
-- Kiểm tra input: email hợp lệ; password ít nhất 8 ký tự có chữ và số; name dài 1–50; quantity 1–20; note tối đa 200; size `S|M|L`; payment method `WALLET|CARD`.
+- Kiểm tra input: email hợp lệ, tối đa 254 ký tự sau trim và lưu/tra cứu chữ thường; password ít nhất 8 ký tự có chữ và số, tối đa 72 byte UTF-8, không trim; name dài 1–50 sau trim; quantity 1–20; note tối đa 200; size `S|M|L`; payment method `WALLET|CARD`.
 - Giá: `unitPrice = basePrice + size.extraPrice + SUM(topping.price)`; `lineTotal = unitPrice * quantity`; `subtotal = SUM(lineTotal)`; `totalAmount = subtotal - discountAmount`. Giá phải được backend tính lại.
 - Tồn kho ở Product, không ở size/topping. Tạo đơn PENDING và trừ tồn kho cùng transaction; không đủ hàng trả 409 `OUT_OF_STOCK` và rollback toàn bộ.
-- Thanh toán: `Idempotency-Key` bắt buộc; cùng key/body trả lại HTTP status và body đã lưu kể cả 402; cùng key/body khác trả 422; PAYMENT FAILED giữ PENDING, không hoàn kho; khi `PAYMENT_ALLOW_SIMULATE=false` server bỏ qua trường `simulate` và mặc định SUCCESS.
-- Thứ tự trạng thái: `PENDING → PAID → PREPARING → READY → COMPLETED`. `PENDING → CANCELLED` chỉ khi thực hiện FR-10 (Should). Không có hủy thủ công ở MVP.
+- Thanh toán: `Idempotency-Key` bắt buộc; unique theo (userId, key), userId từ JWT và khớp chủ Order. Cùng user/key/body trả HTTP status và body đã lưu kể cả 402; cùng user/key nhưng body khác trả 422. PAYMENT FAILED giữ PENDING, không hoàn kho. Transaction cập nhật có điều kiện bảo đảm tối đa một SUCCESS mỗi Order. Khi `PAYMENT_ALLOW_SIMULATE=false`, bỏ qua simulate khi quyết định kết quả và mặc định SUCCESS; quy tắc chuẩn hóa hash khi tắt cờ cần chốt theo ADR-007.
+- Thứ tự trạng thái: `PENDING → PAID → PREPARING → READY → COMPLETED`. `PENDING → CANCELLED` chỉ khi thực hiện FR-10 (Should). Không có hủy thủ công ở MVP. STAFF/MANAGER chỉ yêu cầu đích PREPARING, READY, COMPLETED liền kề; đích khác kể cả CANCELLED trả 409 `INVALID_STATUS_TRANSITION`.
 - Theo dõi đơn: client polling `GET /orders/:id` mỗi 5 giây khi màn hình theo dõi mở; READY có thông báo; dừng ở COMPLETED, CANCELLED hoặc rời màn hình. Không dùng push notification.
-- `GET /orders/:id` trả 404 cho đơn thuộc người khác. Không đặt mã `code` mới cho 401, 403, 404 đơn hoặc thiếu `Idempotency-Key` khi SRS chỉ quy định HTTP status.
+- `GET /orders/:id` trả 404 cho đơn thuộc người khác. 401 `UNAUTHORIZED` cho JWT không hợp lệ hoặc user bị xóa; 403 `FORBIDDEN` khi role hiện tại không đủ quyền. Mã riêng cho 404 đơn, 400 thiếu Idempotency-Key và 500 chưa chốt (xem mục 10).
 
 ### Tên mã lỗi đã được SRS định danh
 
 `VALIDATION_ERROR`, `PRODUCT_NOT_FOUND`, `OUT_OF_STOCK`, `PAYMENT_DECLINED`, `ORDER_NOT_PAYABLE`, `IDEMPOTENCY_KEY_REUSED`, `INVALID_STATUS_TRANSITION`, `PROMOTION_INVALID` (FR-11), `EMAIL_TAKEN`, `INVALID_CREDENTIALS`.
 
-Không tạo thêm tên mã lỗi tự chế.
+Hai mã bổ sung theo PR 6A/6B (chờ duyệt): `UNAUTHORIZED` (401), `FORBIDDEN` (403). Không tự đặt mã khác khi chưa thống nhất.
+
+### 4.1 POST `/auth/register` và POST `/auth/login`
+
+| Endpoint | Body (JSON object, không nhận trường lạ) | Response |
+|---|---|---|
+| POST /auth/register | `{email,password,name}` | 201 `{id,email,name,role:"CUSTOMER"}` |
+| POST /auth/login | `{email,password}` | 200 `{accessToken,user:{id,email,name,role}}` |
+
+- Register: sai dữ liệu, thiếu trường hoặc trường lạ (kể cả role) trả 400 VALIDATION_ERROR; email trùng sau chuẩn hóa (kể cả P2002 do đua điều kiện) trả 409 EMAIL_TAKEN. Không trả passwordHash.
+- Login: body sai kiểu/thiếu trường/trường lạ trả 400 VALIDATION_ERROR; sai email hoặc mật khẩu (kể cả email không hợp lệ hoặc mật khẩu rỗng/quá 72 byte ở body đúng kiểu) trả cùng 401 INVALID_CREDENTIALS. Dùng bcrypt cost 10, hash giả khi user không tồn tại; không trim mật khẩu.
+- JWT: HS256, role từ DB, không refresh token. Thiếu/sai/hết hạn token hoặc user đã bị xóa trả 401 UNAUTHORIZED; role không được phép trả 403 FORBIDDEN. JWT_SECRET bắt buộc khi Auth được khởi tạo; production tối thiểu 32 ký tự và không là placeholder đã biết, cần secret ngẫu nhiên.
+- Mã lỗi và giới hạn bổ sung ở mục này là nội dung cần review cùng PR 6A/6B, không làm thay đổi API sản phẩm.
 
 ## 5. Phụ lục A – Dữ liệu seed/fixture thống nhất (đề xuất Sprint 1)
 
@@ -222,7 +234,7 @@ Slug chỉ dùng làm dữ liệu trao đổi; UI hiển thị tiếng Việt. C
 
 ## 8. Truy vết test dự kiến
 
-Mã test là **kế hoạch định danh**, không khẳng định file test đã tồn tại hoặc chạy PASS.
+Mã test là **định danh truy vết**, không khẳng định chạy PASS. API-Txx định danh một nhóm hành vi; nhóm có thể có nhiều case với mô tả/ tham số khác nhau (không dùng cùng mã cho hành vi không liên quan). Bảng dưới đối chiếu mã trong các gói đã gửi, cần kiểm tra trùng trên main trước merge. Unit/mock test không thay integration/HTTP thật.
 
 | Mã test | Nơi sở hữu | Tiêu chí/nhánh cần kiểm chứng |
 |---|---|---|
@@ -232,6 +244,38 @@ Mã test là **kế hoạch định danh**, không khẳng định file test đ�
 | `API-T04` | apps/api | UUID sai → 400 VALIDATION_ERROR (thỏa thuận Sprint 1) |
 | `API-T05` | apps/api | `NFR-03-AC1`: /health 200 khi DB up |
 | `API-T06` | apps/api | `NFR-03-AC1`: /health 503 khi DB down; kiểm tra `{status:"error",db:"down"}` theo đề xuất cần duyệt ở mục 3.3 |
+| `API-T07` | apps/api | FR-01-AC2: danh sách trống [] |
+| `API-T10` | apps/api | FR-01-AC1: HTTP menu không lộ stock, available |
+| `API-T11` | apps/api | HTTP UUID sai, 400 VALIDATION_ERROR |
+| `API-T12` | apps/api | FR-03-AC2: HTTP sản phẩm không tồn tại |
+| `API-T20` | apps/api | FR-06-AC5: tính giá size/topping, số lượng, subtotal/discount/total |
+| `API-T21` | apps/api | FR-06-AC3: giá và số lượng không hợp lệ, overflow |
+| `API-T22` | apps/api | FR-09-AC4: chuyển trạng thái staff |
+| `API-T23` | apps/api | FR-07-AC1/AC2/AC4: chuyển trạng thái thanh toán |
+| `API-T24` | apps/api | FR-10 (Should): chuyển trạng thái hết hạn |
+| `API-T25` | apps/api | FR-07-AC3: hash thanh toán chuẩn hóa |
+| `API-T26` | apps/api | FR-07-AC3: replay, conflict và phạm vi user |
+| `API-T27` | apps/api | FR-10-AC1/AC3 (Should): mốc hết hạn |
+| `API-T28` | apps/api | FR-05-AC2: validate đăng ký |
+| `API-T29` | apps/api | FR-04-AC4/FR-06-AC3: validate dữ liệu đơn |
+| `API-T30` | apps/api | DomainError: mã lỗi nghiệp vụ |
+| `API-T31` | apps/api | Hằng số và giới hạn domain |
+| `API-T32` | apps/api | FR-05-AC2: email 254 ký tự và password 72 byte |
+| `API-T40` | apps/api | FR-05-AC1: đăng ký CUSTOMER, chuẩn hóa, hash |
+| `API-T41` | apps/api | FR-05-AC2: trùng email, P2002 |
+| `API-T42` | apps/api | FR-05-AC3: login, token và public fields |
+| `API-T43` | apps/api | FR-05-AC3: login sai, hash giả, tra cứu chính xác |
+| `API-T44` | apps/api | FR-05-AC1: HTTP register 201 |
+| `API-T45` | apps/api | FR-05-AC2: HTTP register 400/409 |
+| `API-T46` | apps/api | FR-05-AC3: HTTP login 200 |
+| `API-T47` | apps/api | FR-05-AC3: HTTP login 401 |
+| `API-T48` | apps/api | FR-05-AC4: token thiếu/sai/hết hạn hoặc user bị xóa |
+| `API-T49` | apps/api | FR-05-AC4/NFR-02: role DB, guard, xử lý lỗi DB |
+| `API-T50` | apps/api | Ánh xạ DomainError sang HTTP |
+| `API-T51` | apps/api | Giữ hành vi lỗi validate và products |
+| `API-T52` | apps/api | 500 không lộ nội bộ, log an toàn |
+| `API-T53` | apps/api | JWT expiry và secret configuration |
+| `API-T54` | apps/api | JWT Strategy: payload, role DB, lỗi DB |
 | `UI-T01` | apps/web | `FR-01-AC1`: hiển thị danh sách sản phẩm |
 | `UI-T02` | apps/web | `FR-01-AC3`, `NFR-04-AC2`: loading, cold start hint |
 | `UI-T03` | apps/web | `FR-01-AC2`, `NFR-04-AC2`: empty state |
@@ -262,3 +306,8 @@ Bổ sung kiểm thử: giá VND theo `vi-VN`, ảnh fallback, `imageUrl=null`, 
 - Xác nhận dùng `imageUrl` đường dẫn tương đối phục vụ từ Next.js/Vercel (frontend chịu trách nhiệm đặt ảnh).
 - Phê duyệt đề xuất 503 `/health` `{status:"error",db:"down"}` tại mục 3.3 trước khi dùng làm assertion cứng của API-T06.
 - API có thể chạy trên Render free khi cold start; timeout 75 giây là lựa chọn UX, cần điều chỉnh theo phép thử thực tế nếu không phù hợp.
+
+- Xác nhận các mã API-Txx mới không va chạm trên main. Mã API-T45 hiện gom 400/409 cùng nhóm đăng ký lỗi; không xem là hai chức năng khác nhau.
+- Chốt `ORDER_NOT_FOUND` (404 đề xuất, dùng chung với đơn người khác), `VALIDATION_ERROR` cho thiếu key (400 đề xuất), `INTERNAL_SERVER_ERROR` (500 đề xuất nếu mọi lỗi cần code). Các mã mới chưa thống nhất không thêm vào bảng ánh xạ code hiện tại.
+- Thống nhất `simulate` trong requestHash khi cờ mô phỏng tắt, giới hạn độ dài/định dạng Idempotency-Key, DTO chi tiết order/payment trước hiện thực các module.
+- Body 503 riêng của health, chính sách timeout kiểm tra DB và cách tách migration/start khi DB down cần nhóm duyệt; không khẳng định đang triển khai.

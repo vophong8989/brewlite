@@ -33,3 +33,5 @@
 
 - Nhánh Next.js UI: polling `GET /orders/:id` mỗi 5 giây; hiển thị READY, dừng khi COMPLETED/CANCELLED hoặc rời màn hình (FR-09-AC1, FR-09-AC2).
 - Nhánh Cashier/Manager: đăng nhập UC-09, HTTP 200 tiếp tục hoặc HTTP 401 kết thúc; sau đó xử lý PAID đến COMPLETED (FR-05-AC3, FR-09-AC3, FR-09-AC4).
+
+**Dự thảo cập nhật 25/11/2026:** key thanh toán có phạm vi theo user; kiểm tra quyền sở hữu, replay trước xét trạng thái yêu cầu mới, cập nhật PAID có điều kiện để tránh hai SUCCESS. Xem [ADR-007](../architecture/adr/007-order-payment-design.md).

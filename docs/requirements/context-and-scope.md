@@ -4,7 +4,7 @@
 **Phiên bản:** 1.0  
 **Ngày:** 16/11/2026  
 **Dự án:** BrewLite - Ứng dụng đặt đồ uống tại quán cà phê  
-**Nhóm thực hiện:** [Phan Tấn Tài] và [Võ Quốc Phong]  
+**Nhóm thực hiện:** Phan Tấn Tài và Võ Quốc Phong
 **Tài liệu:** `docs/requirements/context-and-scope.md`  
 **Tạo phẩm:** Task 1.1 - BrewLite Assignment 2
 
@@ -28,8 +28,10 @@ BrewLite tập trung số hóa quy trình đặt đồ uống để khách hàng
 | Nhân viên quầy (Cashier, role STAFF) | Tiếp nhận và xử lý đơn hàng tại quán. | Xem danh sách đơn cần xử lý; xem thông tin đồ uống, size, topping; cập nhật trạng thái đơn theo quy tắc nghiệp vụ. |
 | Quản lý cửa hàng (Manager) | Giám sát hoạt động xử lý đơn và quản lý dữ liệu sản phẩm. | Có quyền xử lý đơn như STAFF; được quản lý sản phẩm và tồn kho nếu triển khai chức năng mở rộng FR-13. |
 | Giảng viên/khách hàng nghiệm thu | Đánh giá mức độ đáp ứng yêu cầu Assignment 2. | Có tài liệu yêu cầu rõ ràng, mã định danh và truy vết; sơ đồ nhất quán; kiểm thử và CI/CD; repository và production có thể truy cập; demo luồng end-to-end. |
-| Nhóm phát triển ([Phan Tấn Tài] và [Võ Quốc Phong]) | Hoàn thành đồ án đúng phạm vi, công nghệ, thời hạn và tiêu chí nghiệm thu. | Yêu cầu rõ ràng, có thể kiểm thử; phân công công việc phù hợp; kiểm soát thay đổi qua Git/PR; sử dụng hạ tầng miễn phí. |
-| Đơn vị thanh toán (Payment Service mô phỏng) | Mô phỏng kết quả xử lý thanh toán Ví/Thẻ cho đơn hàng. | Nhận yêu cầu thanh toán hợp lệ; trả kết quả thành công/thất bại; hỗ trợ idempotency để tránh xử lý trùng giao dịch. |
+| Nhóm phát triển (Phan Tấn Tài và Võ Quốc Phong) | Hoàn thành đồ án đúng phạm vi, công nghệ, thời hạn và tiêu chí nghiệm thu. | Yêu cầu rõ ràng, có thể kiểm thử; phân công công việc phù hợp; kiểm soát thay đổi qua Git/PR; sử dụng hạ tầng miễn phí. |
+
+
+Payment Service là module mô phỏng nội bộ BrewLite, không phải đơn vị bên ngoài; hỗ trợ thanh toán Ví/Thẻ và idempotency.
 
 ## 3. Phạm vi hệ thống
 
@@ -66,7 +68,7 @@ Các chức năng dưới đây thuộc phạm vi bắt buộc của MVP.
 4. Backend phải tính lại tổng tiền từ dữ liệu sản phẩm, size và topping; không tin giá do client gửi.
 5. Khi tạo đơn, kiểm tra và trừ tồn kho trong cùng transaction; nếu không đủ hàng thì rollback và không tạo đơn.
 6. Thanh toán thành công chuyển đơn từ PENDING sang PAID; thanh toán thất bại giữ đơn PENDING để khách có thể thử lại.
-7. Cùng idempotency key và cùng nội dung yêu cầu thanh toán phải trả lại kết quả đã lưu, kể cả kết quả thất bại. Cùng key với nội dung khác phải bị từ chối.
+7. Trong phạm vi cùng user đã xác thực, cùng idempotency key và nội dung yêu cầu thanh toán phải trả kết quả đã lưu, kể cả thất bại; cùng user/key với nội dung khác bị từ chối. Key giữa các user độc lập.
 8. Customer chỉ được truy cập các đơn hàng thuộc tài khoản của mình.
 9. Customer thấy trạng thái READY thông qua polling, không sử dụng push notification.
 
@@ -168,7 +170,7 @@ Các nội dung dưới đây không thuộc phạm vi thực hiện của Assig
 | CON-02 | Chỉ sử dụng dịch vụ miễn phí. Hạ tầng dự kiến gồm Vercel cho web, Render Web Service cho API, Render Postgres cho database, GitHub Actions cho CI/CD và GHCR cho lưu trữ Docker image. |
 | CON-03 | Repository GitHub phải ở chế độ Public. Không commit mật khẩu, token, khóa bí mật hoặc thông tin nhạy cảm vào repository; secret không được xuất hiện trong log CI. |
 | CON-04 | Database production không được public trực tiếp; kết nối database phải được bảo vệ và sử dụng kết nối nội bộ phù hợp với hạ tầng triển khai. |
-| CON-05 | Nhóm gồm hai thành viên [Phan Tấn Tài] và [Võ Quốc Phong]; thời gian thực hiện dự kiến từ 16/11/2026 đến 16/12/2026, khoảng một tháng. |
+| CON-05 | Nhóm gồm hai thành viên Phan Tấn Tài và Võ Quốc Phong; thời gian thực hiện dự kiến từ 16/11/2026 đến 16/12/2026, khoảng một tháng. |
 | CON-06 | Năm task phải được thực hiện và nghiệm thu tuần tự theo đề: Task 1 (Yêu cầu), Task 2 (Mô hình hóa), Task 3 (Kiến trúc), Task 4 (Sprint 1), Task 5 (Sprint 2 và triển khai). Task sau phải có tạo phẩm của task trước trong repository với lịch sử thay đổi rõ ràng. |
 | CON-07 | Thanh toán chỉ được mô phỏng qua Payment Service; hỗ trợ Ví/Thẻ, nhánh thành công/thất bại và idempotency. Không tích hợp thanh toán thật. |
 | CON-08 | Render Web Service gói free có thể ngủ sau khoảng 15 phút không truy cập, dẫn đến cold start khi có yêu cầu mới. Hệ thống và quy trình demo phải tính đến giới hạn này. |
@@ -184,7 +186,7 @@ Các nội dung dưới đây không thuộc phạm vi thực hiện của Assig
 
 | Mã | Rủi ro | Mức độ | Hướng xử lý |
 |---|---|---|---|
-| RSK-01 | Thời gian khoảng một tháng không đủ để hoàn thành MVP, kiểm thử và triển khai production. | Cao | Ưu tiên toàn bộ Must; chia công việc giữa Tài và Phong; kiểm tra tiến độ theo tuần; loại bỏ Should/Could khi có nguy cơ trễ hạn. |
+| RSK-01 | Thời gian khoảng một tháng không đủ để hoàn thành MVP, kiểm thử và triển khai production. | Cao | Ưu tiên toàn bộ Must; chia công việc giữa A và Phong; kiểm tra tiến độ theo tuần; loại bỏ Should/Could khi có nguy cơ trễ hạn. |
 | RSK-02 | Render free ngủ sau thời gian không truy cập, gây chậm hoặc lỗi khi demo và smoke test. | Cao | Gọi `/health` trước demo; bổ sung retry và thời gian chờ cold start trong smoke test; kiểm tra URL trước nghiệm thu. |
 | RSK-03 | Render Postgres free hết hạn trước thời điểm nghiệm thu, làm mất khả năng truy cập dữ liệu. | Cao | Tạo database production gần ngày bàn giao; ghi ngày tạo/hết hạn; duy trì migration/seed và phương án chuyển sang database miễn phí dự phòng. |
 | RSK-04 | Đặt đơn đồng thời gây trừ tồn kho sai, tồn kho âm hoặc tạo đơn khi đã hết hàng. | Cao | Kiểm tra tồn kho theo sản phẩm và cập nhật trong cùng transaction; rollback khi không đủ hàng; viết integration test cho trường hợp lỗi và yêu cầu đồng thời. |
@@ -199,3 +201,5 @@ Các nội dung dưới đây không thuộc phạm vi thực hiện của Assig
 | RSK-13 | Cơ chế tự hủy đơn chạy trùng hoặc hoàn tồn kho nhiều lần nếu triển khai FR-10. | Trung bình | Kiểm tra lazy expiration ở các API đã xác định; cập nhật trạng thái có điều kiện và hoàn kho trong cùng transaction; kiểm thử gọi lặp và yêu cầu đồng thời. |
 | RSK-14 | Seed tài khoản STAFF/MANAGER không an toàn hoặc làm lộ mật khẩu quản trị. | Cao | Đọc mật khẩu từ biến môi trường, không hardcode; không commit hoặc ghi mật khẩu vào log; kiểm tra cấu hình seed và phân quyền. |
 | RSK-15 | Nếu không triển khai FR-10, đơn PENDING bị bỏ dở giữ tồn kho vì tồn kho đã bị trừ khi tạo đơn; trạng thái CANCELLED cũng không có luồng tự động kích hoạt. | Trung bình | Ưu tiên FR-10 ngay sau Must. Nếu không thực hiện, ghi rõ giới hạn trong SRS và README. Xem xét bổ sung thao tác hủy đơn thủ công cho STAFF/MANAGER nếu được đưa vào phạm vi, hoặc tái tạo tồn kho bằng seed khi demo. |
+
+**Cập nhật đề xuất:** 25/11/2026, bản 1.1 (chờ review của hai thành viên; chưa phải minh chứng triển khai).

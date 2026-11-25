@@ -18,7 +18,7 @@ S --> SYS : Đăng nhập, xem hàng đợi, xử lý đơn
 M --> SYS : Xử lý đơn; quản lý sản phẩm (Could)
 note bottom of SYS
   Thanh toán WALLET/CARD được mô phỏng bên trong BrewLite.
-  Payment Service không phải hệ thống ngoài.
+  Payment Simulator là module nội bộ NestJS, không phải hệ thống ngoài.
   Không có Payment Gateway hoặc Shipping Company.
   Xem chi tiết module payments ở C4 Level 2 / bảng Level 3.
 end note

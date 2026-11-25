@@ -1,6 +1,6 @@
 # Kiến trúc phần mềm BrewLite
 
-**Phiên bản:** 1.0  
+**Phiên bản:** 1.1 (dự thảo cập nhật 25/11/2026)
 **Ngày:** 18/11/2026  
 **Phạm vi:** Task 3.1, Assignment 2  
 **Nguồn:** `docs/requirements/srs.md`, `context-and-scope.md`, `class-domain.puml`, `sequence-checkout.puml`, kế hoạch nhóm v3.
@@ -65,7 +65,7 @@ Frontend được Vercel phục vụ qua HTTPS nhưng **Browser/PWA của ngư�
 
 - Prisma là ORM theo D1 (ADR-002). `prisma migrate deploy` áp dụng migration đã commit trong môi trường production, không dùng `migrate dev` hoặc `migrate reset` ở production.
 - `POST /orders`: validate JWT/role và body; kiểm tra sản phẩm/tồn kho; server tính lại giá VND nguyên; một `$transaction` tạo Order PENDING, OrderItem và trừ stock theo Product. Thiếu hàng rollback, HTTP 409 OUT_OF_STOCK, không tạo đơn.
-- `POST /payments`: kiểm tra idempotencyKey + requestHash trước trạng thái PENDING; cùng key/body trả nguyên kết quả cũ (kể cả 402); khác body trả 422. Ghi Payment và cập nhật Order cùng transaction: SUCCESS chuyển PAID, FAILED giữ PENDING và **không hoàn kho**. `PAYMENT_ALLOW_SIMULATE=false` bỏ qua simulate và mặc định SUCCESS.
+- `POST /payments`: kiểm tra quyền sở hữu rồi tra `(userId, idempotencyKey)` + requestHash trước trạng thái PENDING; cùng user/key/body trả nguyên kết quả cũ (kể cả 402); cùng user/key khác body trả 422. Không lấy userId từ body. Cập nhật trạng thái có điều kiện để không tạo hai SUCCESS cho một Order. Ghi Payment và cập nhật Order cùng transaction: SUCCESS chuyển PAID, FAILED giữ PENDING và **không hoàn kho**. `PAYMENT_ALLOW_SIMULATE=false` bỏ qua simulate và mặc định SUCCESS.
 - Nếu triển khai FR-10, lazy expiration ở GET /orders, GET /orders/:id, POST /payments; cập nhật có điều kiện và hoàn kho đúng một lần trong transaction. Seed tạo STAFF/MANAGER từ biến môi trường, không commit password.
 - DB production không mở truy cập public; Neon free chỉ là phương án dự phòng đổi `DATABASE_URL`, cần chạy migration/seed có chủ đích.
 
@@ -73,8 +73,8 @@ Frontend được Vercel phục vụ qua HTTPS nhưng **Browser/PWA của ngư�
 
 | Chủ đề | Quyết định | Kiểm chứng |
 |---|---|---|
-| Auth | `@nestjs/jwt` + Passport, bcrypt; JWT payload `sub`, `role`; hạn 1 giờ, không refresh token; client gửi Bearer; guard CUSTOMER/STAFF/MANAGER | 401 thiếu/hết JWT, 403 sai role; 404 với đơn người khác |
-| Validation | `class-validator` ở backend, UI kiểm tra trước; email, password, name, quantity, size, note theo SRS | HTTP 400 VALIDATION_ERROR |
+| Auth | `@nestjs/jwt` + Passport, bcrypt; JWT HS256 payload `sub`, `role`, `iat`, `exp`; hạn 1 giờ, không refresh token; client gửi Bearer; guard kiểm tra role DB hiện tại | 401 thiếu/hết JWT, 403 sai role; 404 với đơn người khác |
+| Validation | `class-validator` và logic domain ở backend, UI kiểm tra trước; email, password, name, quantity, size, note theo SRS | HTTP 400 VALIDATION_ERROR |
 | Error | Exception filter trả `{statusCode,error,message,code}` | Test contract cho các code đã chốt; không tự đặt code chưa có |
 | Logging | Sử dụng Pino cho log có cấu trúc (stdout); không log JWT, password, secret | Kiểm tra log CI/Render |
 | Health | `@nestjs/terminus`, GET /health | 200 `{status,db}`, 503 khi DB mất kết nối |
@@ -100,7 +100,7 @@ Frontend được Vercel phục vụ qua HTTPS nhưng **Browser/PWA của ngư�
 | Render free có chạy trực tiếp image GHCR không | Kiểm tra ở tuần 3; nếu không, Render build từ Git, GHCR chỉ lưu image có tag; cập nhật sơ đồ theo thực tế |
 | Migration không tương thích khi rollback | Migration tương thích ngược; chỉ `migrate deploy`, không reset production |
 | Secret lộ qua repo/log | GitHub Environment production, Render env, Vercel env; secret scan |
-| Payment bị gọi lại | Unique idempotencyKey, requestHash, lưu HTTP response, transaction nhất quán |
+| Payment bị gọi lại | Unique (userId, idempotencyKey), requestHash, lưu HTTP response, transaction và cập nhật có điều kiện |
 
 ## 9. Truy vết kiến trúc
 
@@ -108,8 +108,11 @@ Frontend được Vercel phục vụ qua HTTPS nhưng **Browser/PWA của ngư�
 |---|---|---|---|
 | ARCH-WEB | FR-01..04, FR-08..09; NFR-04 | `apps/web/` | ADR-001, ADR-004, ADR-006 |
 | ARCH-API | FR-01..13; NFR-01..03, NFR-06 | `apps/api/src/`, `apps/api/Dockerfile` | ADR-001, ADR-002, ADR-003, ADR-005, ADR-006 |
-| ARCH-PAY | FR-07 | `apps/api/src/payments/` | ADR-005 |
+| ARCH-PAY | FR-07 | `apps/api/src/payments/` | ADR-005, ADR-007 |
 | ARCH-DB | FR-05..13; NFR-02, NFR-03 | `apps/api/prisma/`, `docker-compose.yml` | ADR-002, ADR-004 |
 | ARCH-CI | NFR-02, NFR-05, NFR-06 | `.github/workflows/` | ADR-001, ADR-004 |
 | ARCH-REG | NFR-05 | `.github/workflows/`, `apps/api/Dockerfile` | ADR-004 |
 
+## 10. Đồng bộ thiết kế Sprint 2 (dự thảo)
+
+[ADR-007](adr/007-order-payment-design.md) ghi quyết định về số tiền Int, snapshot, index, FK Payment và migration. PrismaService dự kiến kết nối lười; health cần thử DB up/down và không lộ DSN. Nếu Docker vẫn migrate trước start, container có thể không chạy khi DB down. Đây là thiết kế mục tiêu, chưa khẳng định khớp schema thực tế của Phong.

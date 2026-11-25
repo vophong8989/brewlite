@@ -1,10 +1,10 @@
 # Đặc tả yêu cầu phần mềm (Software Requirements Specification)
 
-**Phiên bản:** 1.0  
+**Phiên bản:** 1.1 (dự thảo cập nhật)
 **Ngày:** 16/11/2026  
 **Dự án:** BrewLite - Ứng dụng đặt đồ uống tại quán cà phê  
 **Tạo phẩm:** Task 1.2 - BrewLite Assignment 2  
-**Trạng thái:** Đặc tả yêu cầu v1.0
+**Trạng thái:** Dự thảo thay đổi v1.1; cần review trước khi hợp nhất. Cập nhật 25/11/2026.
 
 ## 1. Giới thiệu
 
@@ -45,14 +45,16 @@ MVP gồm xem menu và chi tiết sản phẩm; giỏ hàng; xác thực, phân 
 | Customer | CUSTOMER | Xem menu, chọn đồ uống, giỏ hàng, đăng ký/đăng nhập, đặt và thanh toán đơn, xem lịch sử, theo dõi trạng thái. |
 | Cashier | STAFF | Đăng nhập, xem hàng đợi và cập nhật trạng thái xử lý đơn. |
 | Manager | MANAGER | Đăng nhập, xử lý đơn như STAFF; quản lý sản phẩm/tồn kho nếu triển khai FR-13. |
-| Payment Service | Không có role người dùng | Mô phỏng thanh toán Ví/Thẻ và hỗ trợ idempotency. |
+
+
+Payment Service là module mô phỏng nội bộ NestJS, không phải tác nhân bên ngoài ranh giới BrewLite; vẫn xuất hiện như thành phần xử lý trong Activity/Sequence Diagram.
 
 Quy tắc phân quyền:
 
 1. Menu và chi tiết sản phẩm cho phép truy cập công khai.
 2. Đăng ký công khai chỉ tạo CUSTOMER; STAFF/MANAGER được tạo bằng seed, mật khẩu lấy từ biến môi trường.
-3. JWT chứa `sub`, `role`, truyền qua `Authorization: Bearer <JWT>`.
-4. API cần xác thực trả 401 khi thiếu/sai/hết hạn JWT; trả 403 khi role không được phép.
+3. JWT ký HS256, chứa `sub`, `role` và claim thời gian `iat`, `exp`, truyền qua `Authorization: Bearer <JWT>`; mặc định 1 giờ, không refresh token trong MVP. Role hiện tại được đọc từ DB mỗi request cần xác thực, không tin role cũ trong JWT.
+4. API cần xác thực trả 401 `UNAUTHORIZED` khi thiếu/sai/hết hạn JWT hoặc user không còn tồn tại; trả 403 `FORBIDDEN` khi role hiện tại không được phép.
 5. CUSTOMER chỉ được xem và thao tác trên đơn của mình; STAFF/MANAGER được xử lý trạng thái đơn; chỉ MANAGER được quản lý sản phẩm/tồn kho nếu có FR-13.
 
 ## 3. Yêu cầu chức năng
@@ -95,9 +97,9 @@ Mỗi mã AC là một điều kiện độc lập, có thể liên kết trực
 | FR-04-AC3 | Tải lại trang vẫn khôi phục được giỏ hàng lưu ở client. |
 | FR-04-AC4 | Quantity ngoài 1 đến 20 bị từ chối; giỏ rỗng không được gửi đặt đơn. |
 | FR-05-AC1 | `POST /auth/register` hợp lệ trả 201 và tài khoản mới có role CUSTOMER. |
-| FR-05-AC2 | Dữ liệu đăng ký sai trả 400 `VALIDATION_ERROR`; email trùng trả 409 `EMAIL_TAKEN`. |
-| FR-05-AC3 | `POST /auth/login` hợp lệ trả 200 `{accessToken, user}`; sai thông tin trả 401 `INVALID_CREDENTIALS`. |
-| FR-05-AC4 | JWT thiếu/sai/hết hạn trả 401; role không được phép trả 403; đăng ký công khai không thể cấp STAFF/MANAGER. |
+| FR-05-AC2 | Dữ liệu đăng ký sai (kể cả trường lạ/role, email quá 254 ký tự sau trim, mật khẩu vượt 72 byte UTF-8) trả 400 `VALIDATION_ERROR`; email trùng sau chuẩn hóa, kể cả khác hoa/thường, trả 409 `EMAIL_TAKEN`. |
+| FR-05-AC3 | `POST /auth/login` hợp lệ trả 200 `{accessToken, user}`; sai thông tin đăng nhập trả cùng 401 `INVALID_CREDENTIALS`; body thiếu trường, sai kiểu hoặc có trường lạ trả 400 `VALIDATION_ERROR`. |
+| FR-05-AC4 | JWT thiếu/sai/hết hạn hoặc user không còn tồn tại trả 401 `UNAUTHORIZED`; role hiện tại trong DB không được phép trả 403 `FORBIDDEN`; đăng ký công khai không thể cấp STAFF/MANAGER. |
 | FR-06-AC1 | `POST /orders` với JWT CUSTOMER, dữ liệu hợp lệ và đủ tồn kho trả 201, tạo đơn PENDING và trừ kho đúng số lượng. |
 | FR-06-AC2 | Không đủ tồn kho trả 409 `OUT_OF_STOCK`; transaction rollback, không tạo đơn và không thay đổi tồn kho. |
 | FR-06-AC3 | Sản phẩm không tồn tại trả 404 `PRODUCT_NOT_FOUND`; dữ liệu sai trả 400; mã khuyến mãi không hợp lệ trả 422 `PROMOTION_INVALID` nếu có FR-11. |
@@ -105,7 +107,7 @@ Mỗi mã AC là một điều kiện độc lập, có thể liên kết trực
 | FR-06-AC5 | Server tính lại đơn giá và tổng tiền từ dữ liệu sản phẩm, size, topping; không tin giá client gửi. |
 | FR-07-AC1 | `POST /payments` với đơn PENDING, phương thức WALLET/CARD, key hợp lệ và kết quả SUCCESS trả 200, payment SUCCESS, đơn PAID. |
 | FR-07-AC2 | Thanh toán FAILED trả 402 `PAYMENT_DECLINED`, đơn giữ PENDING và có thể thử lại bằng key mới. |
-| FR-07-AC3 | Cùng key và body trả lại đúng kết quả đã lưu, kể cả 402, không tạo payment mới; cùng key khác body trả 422 `IDEMPOTENCY_KEY_REUSED`. |
+| FR-07-AC3 | Trong phạm vi cùng người dùng đã xác thực, cùng key và body trả lại đúng kết quả đã lưu, kể cả 402, không tạo payment mới; cùng key khác body trả 422 `IDEMPOTENCY_KEY_REUSED`. Key trùng của hai người dùng độc lập. |
 | FR-07-AC4 | Thiếu `Idempotency-Key` trả 400; đơn không tồn tại trả 404; đơn không còn PENDING trả 409 `ORDER_NOT_PAYABLE` cho yêu cầu mới. |
 | FR-07-AC5 | Thiếu/sai/hết hạn JWT trả 401; STAFF hoặc MANAGER gọi `POST /payments` trả 403; CUSTOMER thanh toán đơn của người khác trả 404. |
 | FR-07-AC6 | Khi `PAYMENT_ALLOW_SIMULATE=false`, server bỏ qua trường `simulate` và mặc định kết quả SUCCESS; khi bật `true`, nhận SUCCESS hoặc FAILED để demo. |
@@ -116,7 +118,7 @@ Mỗi mã AC là một điều kiện độc lập, có thể liên kết trực
 | FR-09-AC1 | Khi mở màn hình theo dõi, client lấy trạng thái mỗi 5 giây; READY hiển thị thông báo đồ uống sẵn sàng. |
 | FR-09-AC2 | Polling dừng khi đơn COMPLETED, CANCELLED hoặc người dùng rời màn hình; không dùng push notification. |
 | FR-09-AC3 | `GET /staff/orders` với STAFF/MANAGER trả 200, hiển thị hàng đợi gồm size/topping. |
-| FR-09-AC4 | `PATCH /staff/orders/:id/status` cập nhật hợp lệ trả 200; chuyển sai trả 409 `INVALID_STATUS_TRANSITION`; role không hợp lệ trả 403. |
+| FR-09-AC4 | `PATCH /staff/orders/:id/status` chỉ cho STAFF/MANAGER chuyển liền kề PAID → PREPARING → READY → COMPLETED, trả 200; chuyển sai hoặc đích khác (kể cả CANCELLED) trả 409 `INVALID_STATUS_TRANSITION`; role không hợp lệ trả 403. |
 | FR-10-AC1 | Khi gọi `GET /orders`, `GET /orders/:id`, `POST /payments`, đơn PENDING quá 30 phút chuyển CANCELLED và hoàn kho theo từng dòng trong cùng transaction. |
 | FR-10-AC2 | Gọi lặp hoặc đồng thời không hoàn kho nhiều lần; chỉ cập nhật nếu đơn vẫn PENDING. |
 | FR-10-AC3 | Đơn PAID hoặc trạng thái sau PAID không bị tự hủy. |
@@ -154,7 +156,7 @@ Các giá trị định lượng dưới đây là **mục tiêu của nhóm**, 
 | NFR-01-AC1 | Mục tiêu `GET /products` có p95 dưới 500 ms trên 20 lần gọi tuần tự khi API đã khởi động và DB kết nối bình thường, không tính cold start. |
 | NFR-01-AC2 | Báo cáo phép đo ghi rõ môi trường, thời điểm, 20 thời gian phản hồi và p95. |
 | NFR-02-AC1 | Mật khẩu được hash bằng bcrypt, không lưu plaintext trong DB. |
-| NFR-02-AC2 | JWT thiếu/sai/hết hạn trả 401; sai role trả 403; không xem được đơn người khác. |
+| NFR-02-AC2 | JWT thiếu/sai/hết hạn hoặc user không tồn tại trả 401 `UNAUTHORIZED`; sai role hiện tại trong DB trả 403 `FORBIDDEN`; không xem được đơn người khác. |
 | NFR-02-AC3 | Repository và log CI không chứa secret; database production không public trực tiếp. |
 | NFR-02-AC4 | Seed STAFF/MANAGER đọc mật khẩu từ biến môi trường, không hardcode. |
 | NFR-03-AC1 | `GET /health` trả 200 với `{status, db}` khi DB hoạt động và 503 khi mất kết nối DB. |
@@ -190,7 +192,7 @@ Sơ đồ đặt các use-case trong một ranh giới BrewLite. Các chức nă
 | Mã UC | Tên use-case | Actor chính | FR |
 |---|---|---|---|
 | UC-01 | Đặt và thanh toán đơn hàng | Customer | FR-06, FR-07, FR-08 |
-| UC-02 | Thanh toán | Customer, Payment Service | FR-07 |
+| UC-02 | Thanh toán | Customer | FR-07 |
 | UC-03 | Xem menu | Customer | FR-01 |
 | UC-04 | Lọc theo danh mục | Customer | FR-02 |
 | UC-05 | Lọc theo giá | Customer | FR-02 (Could) |
@@ -222,7 +224,7 @@ Sơ đồ đặt các use-case trong một ranh giới BrewLite. Các chức nă
 
 **Generalization:** UC-17 và UC-18 là hai trường hợp chuyên biệt của UC-02, tương ứng WALLET và CARD.
 
-**Actor phụ:** Payment Service gắn với UC-02, chỉ mô phỏng thanh toán. Không có Payment Gateway hoặc Shipping Company. Cashier và Manager phải đăng nhập qua UC-09 trước khi thao tác có phân quyền.
+**Thành phần nội bộ:** Payment Service hỗ trợ UC-02, chỉ mô phỏng thanh toán, không vẽ như actor bên ngoài hệ thống. Không có Payment Gateway hoặc Shipping Company. Cashier và Manager phải đăng nhập qua UC-09 trước khi thao tác có phân quyền.
 
 ### 5.4. Giới hạn sơ đồ
 
@@ -240,16 +242,16 @@ Sơ đồ không thay thế đặc tả chi tiết UC-01 tại Task 1.3. Các nh
 | Thời gian | ISO 8601 UTC. |
 | Xác thực | `Authorization: Bearer <JWT>`. |
 | JWT payload | Chứa `sub` và `role`. |
-| Định dạng lỗi | `{statusCode, error, message, code}`. |
+| Định dạng lỗi | `{statusCode, error, message, code}` với lỗi đã định danh; quy ước code cho 500/404 đơn và body health 503 riêng cần nhóm chốt trong API Contract. |
 | Role | CUSTOMER, STAFF, MANAGER. |
 
 ### 6.2. Quy tắc validate
 
 | Trường | Quy tắc |
 |---|---|
-| email | Đúng định dạng email. |
-| password | Tối thiểu 8 ký tự, có chữ và số. |
-| name | 1 đến 50 ký tự. |
+| email | Đúng định dạng, tối đa 254 ký tự sau trim; chuẩn hóa chữ thường khi lưu và tra cứu, kể cả seed. |
+| password | Tối thiểu 8 ký tự, có chữ và số; tối đa 72 byte UTF-8 (bcrypt), không trim mật khẩu. |
+| name | 1 đến 50 ký tự sau trim. |
 | quantity | Số nguyên 1 đến 20. |
 | note | Tối đa 200 ký tự. |
 | size | S, M hoặc L. |
@@ -264,7 +266,7 @@ Frontend hiển thị lỗi đầu vào; backend validate lại và trả 400 v�
 - `subtotal = SUM(lineTotal)`
 - `totalAmount = subtotal - discountAmount`
 
-Backend tính lại giá từ dữ liệu sản phẩm, size, topping; không tin giá client. Mọi giá trị tiền là số nguyên VND. Nếu không triển khai FR-11, `discountAmount = 0` và quy tắc giảm giá chưa áp dụng. Nếu triển khai FR-11, giảm giá phần trăm được làm tròn xuống số nguyên VND và `discountAmount` không vượt `subtotal`.
+Backend tính lại giá từ dữ liệu sản phẩm, size, topping; không tin giá client. Mọi giá trị tiền lưu trữ là số nguyên VND không âm, trong giới hạn Prisma Int/PostgreSQL integer (0–2.147.483.647); kiểm tra cả kết quả cộng và nhân. Order lưu subtotal, discountAmount (mặc định 0), totalAmount. Nếu không triển khai FR-11, `discountAmount = 0` và quy tắc giảm giá chưa áp dụng. Nếu triển khai FR-11, giảm giá phần trăm được làm tròn xuống số nguyên VND và `discountAmount` không vượt `subtotal`.
 
 ### 6.4. Quy tắc tồn kho và đặt đơn
 
@@ -280,11 +282,11 @@ Backend tính lại giá từ dữ liệu sản phẩm, size, topping; không ti
 
 1. Thanh toán mới chỉ áp dụng với đơn PENDING của CUSTOMER đang đăng nhập.
 2. SUCCESS trả 200 và chuyển đơn sang PAID; FAILED trả 402 `PAYMENT_DECLINED` và giữ PENDING.
-3. Cùng key và body trả lại kết quả đã lưu, kể cả 402, không tạo payment mới; cùng key khác body trả 422 `IDEMPOTENCY_KEY_REUSED`.
+3. Key có phạm vi theo user đã xác thực: cùng user/key/body trả kết quả đã lưu, kể cả 402; cùng user/key nhưng body khác trả 422 `IDEMPOTENCY_KEY_REUSED`. Key của user khác độc lập; không phát lại dữ liệu ngoài quyền sở hữu.
 4. Đơn PENDING sau FAILED có thể thử lại bằng key mới. Yêu cầu mới trên đơn không còn PENDING trả 409 `ORDER_NOT_PAYABLE`.
 5. Thiếu key trả 400; đơn không tồn tại hoặc của người khác trả 404; thiếu JWT trả 401; STAFF/MANAGER trả 403.
 6. Khi `PAYMENT_ALLOW_SIMULATE=true`, nhận `simulate=SUCCESS` hoặc `simulate=FAILED`. Khi `false`, bỏ qua `simulate` và mặc định SUCCESS. Bật biến này trong môi trường demo để kiểm thử nhánh thất bại và ghi cấu hình trong README.
-7. Lưu idempotency key và request hash với ràng buộc duy nhất phù hợp. Khi nhận yêu cầu lặp, ưu tiên xác định kết quả đã lưu trước khi kiểm tra khả năng thanh toán mới.
+7. Lưu Payment.userId lấy từ JWT và bảo đảm khớp Order.userId; unique (userId, idempotencyKey). Tra kết quả đã lưu trong phạm vi chủ đơn trước khi xét trạng thái thanh toán mới. Ghi Payment và chuyển Order có điều kiện trong cùng transaction; hai key khác nhau không được tạo hai Payment SUCCESS cho cùng đơn. Chi tiết hash khi tắt mô phỏng cần hai thành viên chốt (ADR-007).
 
 ### 6.6. Quy tắc trạng thái đơn
 
@@ -300,7 +302,7 @@ Luồng hủy: `PENDING → CANCELLED` (chỉ khi triển khai FR-10).
 | PREPARING | READY | STAFF/MANAGER xác nhận đồ uống sẵn sàng. |
 | READY | COMPLETED | STAFF/MANAGER xác nhận khách nhận món. |
 
-Chuyển sai thứ tự, chuyển ngược hoặc hủy đơn không còn PENDING trả 409 `INVALID_STATUS_TRANSITION`. CUSTOMER không được cập nhật trạng thái. Khi READY, Customer thấy thông báo đồ uống đã sẵn sàng; STAFF/MANAGER xác nhận COMPLETED khi khách nhận món.
+STAFF/MANAGER chỉ được gửi đích PREPARING, READY, COMPLETED và đúng thứ tự liền kề. Mọi đích khác, kể cả CANCELLED, hoặc chuyển sai thứ tự trả 409 `INVALID_STATUS_TRANSITION`. CUSTOMER không được gọi API cập nhật (403 `FORBIDDEN`). PENDING → PAID chỉ qua thanh toán thành công; PENDING → CANCELLED chỉ do hết hạn khi triển khai FR-10. Khi READY, Customer thấy thông báo đồ uống đã sẵn sàng; STAFF/MANAGER xác nhận COMPLETED khi khách nhận món.
 
 ### 6.7. Quy tắc polling
 

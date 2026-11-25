@@ -22,7 +22,7 @@ API --> DB : Internal URL / TCP 5432
 CI ..> WEB : Triển khai frontend
 CI ..> API : Build, deploy, smoke test
 note bottom of API
-  ARCH-PAY = module payments mô phỏng bên trong NestJS.
+  ARCH-PAY = Payment Simulator, module payments nội bộ NestJS.
   Không có Payment Gateway thật hoặc payment service độc lập.
 end note
 note bottom of DB
