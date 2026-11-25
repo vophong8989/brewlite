@@ -71,4 +71,4 @@ Chỉ triển khai theo thứ tự ưu tiên chốt ở quyết định D9 (`FR-
 | ISS-41 | US-13 | US-13: Áp dụng mã khuyến mãi cố định/phần trăm khi đặt đơn | FR-11 | Should | Phan Tấn Tài (Backend) & Võ Quốc Phong (Frontend) | Tuần 4–5 (nếu kịp) |
 | ISS-42 | US-15 | US-15: Quản lý sản phẩm và điều chỉnh tồn kho cho Manager | FR-13 | Could | Phan Tấn Tài (Backend) & Võ Quốc Phong (Frontend) | Tuần 5 (nếu kịp) |
 | ISS-43 | US-14 | US-14: Tích điểm khách hàng thân thiết khi đơn COMPLETED | FR-12 | Could | Phan Tấn Tài (Backend) & Võ Quốc Phong (Frontend) | Tuần 5 (nếu kịp) |
-| ISS-44 | US-16 | US-16: Lọc sản phẩm theo khoảng giá | FR-02 (lọc giá) | Could | Võ Quốc Phong (Frontend/Backend) | Tuần 5 (nếu kịp) |
+| ISS-44 | US-16 | US-16: Lọc sản phẩm theo khoảng giá | FR-02 (lọc giá) | Could | Võ Quốc Phong (Frontend/Backend) | Tuần 5 (nếu kịp) |TODO: test ci fail
