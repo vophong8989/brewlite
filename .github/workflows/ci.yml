@@ -1,0 +1,157 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        # CI only, không phải secret
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brewlite_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d brewlite_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Repo structure and docs hygiene
+        run: |
+          for dir in apps/web apps/api docs; do
+            if [ ! -d "$dir" ]; then
+              echo "Lỗi: Thiếu thư mục bắt buộc '$dir'."
+              exit 1
+            fi
+          done
+
+          if grep -rnE --include='*.md' --include='*.puml' -I '\bTODO\b' docs/; then
+            echo "Lỗi: Phát hiện từ khóa TODO chưa xử lý trong docs/ (*.md, *.puml)."
+            exit 1
+          fi
+
+          missing_svg=0
+          while IFS= read -r puml_file; do
+            svg_file="${puml_file%.puml}.svg"
+            if [ ! -f "$svg_file" ]; then
+              echo "Lỗi: Thiếu tệp SVG kết xuất tương ứng cho '$puml_file' (cần có '$svg_file')."
+              missing_svg=1
+            fi
+          done < <(find docs -name '*.puml')
+
+          if [ "$missing_svg" -ne 0 ]; then
+            exit 1
+          fi
+
+      # Xóa bước kiểm tra khởi tạo này sau khi apps/api và apps/web đã có mã, để thiếu package.json làm CI đỏ
+      - name: Detect API initialization
+        id: api
+        run: |
+          if [ -f "apps/api/package.json" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Đã tìm thấy apps/api/package.json — kích hoạt các bước kiểm tra API."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "apps/api chưa có package.json — tạm bỏ qua các bước kiểm tra API."
+          fi
+
+      # Xóa bước kiểm tra khởi tạo này sau khi apps/api và apps/web đã có mã, để thiếu package.json làm CI đỏ
+      - name: Detect Web initialization
+        id: web
+        run: |
+          if [ -f "apps/web/package.json" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Đã tìm thấy apps/web/package.json — kích hoạt các bước kiểm tra Web."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "apps/web chưa có package.json — tạm bỏ qua các bước kiểm tra Web."
+          fi
+
+      - name: Setup Node.js 22
+        if: steps.api.outputs.ready == 'true' || steps.web.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/api/package-lock.json
+            apps/web/package-lock.json
+
+      - name: API - Install dependencies
+        if: steps.api.outputs.ready == 'true'
+        working-directory: apps/api
+        run: npm ci
+
+      - name: API - Generate Prisma Client
+        if: steps.api.outputs.ready == 'true'
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: API - Lint
+        if: steps.api.outputs.ready == 'true'
+        working-directory: apps/api
+        run: npm run lint
+
+      - name: API - Unit tests
+        if: steps.api.outputs.ready == 'true'
+        working-directory: apps/api
+        env:
+          NODE_ENV: test
+        run: npm test -- --ci
+
+      - name: API - Build
+        if: steps.api.outputs.ready == 'true'
+        working-directory: apps/api
+        run: npm run build
+
+      - name: API - Verify database migrations and seed
+        if: steps.api.outputs.ready == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brewlite_ci?schema=public
+          NODE_ENV: test
+        run: |
+          npx prisma migrate deploy
+          npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+          # Không đặt SEED_*_PASSWORD để bỏ qua phần seed tài khoản kèm cảnh báo, chỉ seed dữ liệu menu
+          npx prisma db seed
+
+      - name: API - Build Docker image
+        if: steps.api.outputs.ready == 'true' && hashFiles('apps/api/Dockerfile') != ''
+        run: docker build -t brewlite-api:ci apps/api
+
+      # Chỉ giữ --if-present cho Web vì mã nguồn frontend giai đoạn đầu có thể chưa cấu hình đủ script lint/test/build
+      - name: Web - Install, Lint, Test & Build
+        if: steps.web.outputs.ready == 'true'
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+        run: |
+          npm ci
+          npm run lint --if-present
+          npm test --if-present
+          npm run build --if-present
