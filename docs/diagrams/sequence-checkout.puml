@@ -23,7 +23,7 @@ actor "Customer" as C
 participant "Next.js UI" as UI
 participant "NestJS API" as API
 database "Database" as DB
-participant "Payment Service" as PS
+participant "Payment Simulator\n(module nội bộ NestJS)" as PS
 
 C -> UI : Xác nhận giỏ hàng và nhấn Đặt đơn
 activate UI
@@ -100,45 +100,51 @@ opt Chỉ khi POST /orders đã trả 201
         API --> UI : HTTP 400
         UI --> C : Yêu cầu thử lại với header hợp lệ
       else Có key và quyền hợp lệ
-        API -> DB : Tra key và request hash đã lưu
+        API -> DB : Kiểm tra orderId thuộc userId từ JWT
         activate DB
-        DB --> API : Kết quả tra cứu
-        alt Cùng key và cùng body đã lưu (ALT-03)
-          API --> UI : Trả lại đúng HTTP/body đã lưu (200 hoặc 402)
-          note over API,PS : Không gọi Payment Service lần nữa
-        else Cùng key, body khác (EX-08)
-          API --> UI : HTTP 422 IDEMPOTENCY_KEY_REUSED
-        else Key chưa được xử lý
-          API -> DB : Kiểm tra orderId thuộc Customer và trạng thái đơn
-          DB --> API : Thông tin đơn và trạng thái
-          alt Đơn không tồn tại hoặc của người khác (EX-10)
-            API --> UI : HTTP 404
-          else Đơn không còn PENDING (EX-09)
-            API --> UI : HTTP 409 ORDER_NOT_PAYABLE
-          else Đơn PENDING của Customer
-            API -> PS : Thanh toán mô phỏng (WALLET/CARD)\nKết quả SUCCESS/FAILED
-            note right of PS
-              PAYMENT_ALLOW_SIMULATE=true:
-              cho phép simulate SUCCESS/FAILED.
-              Nếu false: bỏ qua simulate,
-              mặc định SUCCESS.
-            end note
-            alt Kết quả SUCCESS (MAIN)
-              PS --> API : SUCCESS
-              note over API,DB : Ghi Payment và cập nhật Order trong cùng một transaction
-              API -> DB : BEGIN TRANSACTION
-              API -> DB : Ghi Payment SUCCESS, lưu key/hash/kết quả\nCập nhật Order PENDING -> PAID
-              API -> DB : COMMIT
-              DB --> API : Đã lưu
-              API --> UI : HTTP 200 SUCCESS, orderStatus=PAID
-            else Kết quả FAILED (EX-06 / ALT-02)
-              PS --> API : FAILED
-              note over API,DB : Ghi Payment và cập nhật Order trong cùng một transaction
-              API -> DB : BEGIN TRANSACTION
-              API -> DB : Ghi Payment FAILED, lưu key/hash/kết quả\nGiữ Order PENDING
-              API -> DB : COMMIT
-              DB --> API : Đã lưu
-              API --> UI : HTTP 402 PAYMENT_DECLINED
+        DB --> API : Kết quả quyền sở hữu
+        alt Đơn không tồn tại hoặc của người khác (EX-10)
+          API --> UI : HTTP 404
+        else Đúng chủ đơn
+          note over API,DB : Nếu tranh chấp: rollback, đọc lại key trong phạm vi user;
+          note over API,DB : yêu cầu mới trên đơn đã PAID trả 409, replay trả kết quả cũ.
+          API -> DB : Tra (userId, key) và requestHash đã lưu
+          DB --> API : Kết quả tra cứu
+          alt Cùng user/key/body đã lưu (ALT-03)
+            API --> UI : Trả lại đúng HTTP/body đã lưu (200 hoặc 402)
+            note over API,PS : Không chạy mô phỏng thanh toán lần nữa
+          else Cùng user/key, body khác (EX-08)
+            API --> UI : HTTP 422 IDEMPOTENCY_KEY_REUSED
+          else Key chưa được xử lý
+            API -> DB : Kiểm tra trạng thái Order của user
+            DB --> API : Trạng thái hiện tại
+            alt Đơn không còn PENDING (EX-09)
+              API --> UI : HTTP 409 ORDER_NOT_PAYABLE
+            else Đơn PENDING của Customer
+              API -> PS : Gọi module thanh toán nội bộ (WALLET/CARD)\nKết quả SUCCESS/FAILED
+              note right of PS
+                PAYMENT_ALLOW_SIMULATE=true:
+                cho phép simulate SUCCESS/FAILED.
+                Nếu false: bỏ qua simulate,
+                mặc định SUCCESS.
+              end note
+              alt Kết quả SUCCESS (MAIN)
+                PS --> API : SUCCESS
+                note over API,DB : Ghi Payment và cập nhật Order trong cùng transaction; tối đa một SUCCESS/Order
+                API -> DB : BEGIN TRANSACTION
+                API -> DB : Cập nhật Order PENDING -> PAID có điều kiện;\nghi Payment SUCCESS, key/hash/kết quả nếu thành công
+                API -> DB : COMMIT
+                DB --> API : Đã lưu
+                API --> UI : HTTP 200 SUCCESS, orderStatus=PAID
+              else Kết quả FAILED (EX-06 / ALT-02)
+                PS --> API : FAILED
+                note over API,DB : Ghi Payment và cập nhật Order trong cùng transaction; tối đa một SUCCESS/Order
+                API -> DB : BEGIN TRANSACTION
+                API -> DB : Ghi Payment FAILED, lưu key/hash/kết quả\nGiữ Order PENDING
+                API -> DB : COMMIT
+                DB --> API : Đã lưu
+                API --> UI : HTTP 402 PAYMENT_DECLINED
+              end
             end
           end
         end
@@ -157,7 +163,7 @@ opt Chỉ khi POST /orders đã trả 201
       opt Gửi lại yêu cầu để truy hồi kết quả
         UI -> API : POST /payments với cùng key và cùng body
         activate API
-        API -> DB : Tra kết quả đã lưu theo key và request hash
+        API -> DB : Tra kết quả theo userId, key và requestHash
         activate DB
         DB --> API : Kết quả trước đó nếu đã lưu
         deactivate DB

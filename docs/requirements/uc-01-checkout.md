@@ -1,6 +1,6 @@
 # Đặc tả use-case UC-01: Đặt và thanh toán đơn hàng
 
-**Phiên bản:** 1.0  
+**Phiên bản:** 1.1 (dự thảo cập nhật 25/11/2026)
 **Ngày:** 17/11/2026  
 **Dự án:** BrewLite - Assignment 2  
 **Tạo phẩm:** Task 1.3  
@@ -15,7 +15,7 @@
 | Mã / tên | UC-01 - Đặt và thanh toán đơn hàng |
 | Mô tả | Customer xác nhận giỏ hàng, tạo đơn PENDING có trừ tồn kho, sau đó thanh toán Ví/Thẻ mô phỏng để chuyển đơn sang PAID. |
 | Actor chính | Customer (role CUSTOMER) |
-| Actor phụ | Payment Service (chỉ mô phỏng, không phải cổng thanh toán thật) |
+| Thành phần hỗ trợ nội bộ | Payment Service (module mô phỏng NestJS, không phải actor ngoài hệ thống) |
 | Use-case liên quan | UC-02 Thanh toán (`<<include>>`); UC-17 Thanh toán Ví và UC-18 Thanh toán Thẻ (chuyên biệt hóa UC-02); UC-09 Đăng nhập (tiền điều kiện); UC-14 Áp mã khuyến mãi (`<<extend>>` UC-01, Should). |
 | Yêu cầu / User Story | FR-06, FR-07, FR-08; US-07, US-08; mở rộng FR-11/US-13. |
 
@@ -54,7 +54,7 @@ Tiền điều kiện không thay thế kiểm tra phía backend: quyền truy c
 | 6 | Next.js UI | Hiển thị mã đơn, trạng thái PENDING và tổng tiền theo kết quả server; hiển thị lựa chọn phương thức thanh toán. |
 | 7 | Customer | Chọn WALLET hoặc CARD và xác nhận thanh toán. |
 | 8 | Next.js UI | Tạo một `Idempotency-Key` cho lần thanh toán, gửi `POST /payments` kèm JWT, header `Idempotency-Key` và body có `orderId`, `method`; `simulate=SUCCESS` chỉ có hiệu lực khi `PAYMENT_ALLOW_SIMULATE=true`. |
-| 9 | NestJS API | Kiểm tra JWT/role, đơn thuộc Customer và còn PENDING; xác định kết quả idempotency đã lưu (nếu có) trước khi xử lý lần thanh toán mới. |
+| 9 | NestJS API | Kiểm tra JWT/role và quyền sở hữu đơn; tra kết quả theo (userId, Idempotency-Key) và requestHash trước khi kiểm tra PENDING cho lần thanh toán mới. |
 | 10 | Payment Service | Mô phỏng kết quả SUCCESS cho phương thức WALLET/CARD. Khi `PAYMENT_ALLOW_SIMULATE=false`, backend bỏ qua `simulate` và mặc định SUCCESS. |
 | 11 | NestJS API | Ghi nhận Payment SUCCESS và chuyển đơn PENDING → PAID; trả **200** với kết quả SUCCESS và trạng thái PAID. |
 | 12 | Next.js UI | Hiển thị xác nhận thanh toán thành công và trạng thái PAID; chuyển Customer sang màn hình theo dõi đơn. |
@@ -112,8 +112,8 @@ Tất cả phản hồi lỗi HTTP do NestJS cung cấp theo cấu trúc `{statu
 
 ### 8.3. Idempotency
 
-- `Idempotency-Key` bắt buộc; yêu cầu lặp với **cùng key và body** trả kết quả đã lưu, kể cả 402, không tạo Payment mới.
-- Cùng key và body khác trả 422 `IDEMPOTENCY_KEY_REUSED`.
+- `Idempotency-Key` bắt buộc và có phạm vi theo user từ JWT; yêu cầu lặp với **cùng user, key và body** trả kết quả đã lưu, kể cả 402, không tạo Payment mới.
+- Cùng user/key và body khác trả 422 `IDEMPOTENCY_KEY_REUSED`.
 - FAILED cho phép thử lại bằng **key mới** khi đơn vẫn PENDING. Yêu cầu thanh toán mới trên đơn không còn PENDING trả 409 `ORDER_NOT_PAYABLE`.
 - Nếu mất phản hồi, client không tự giả định thất bại; cùng key và body có thể dùng để truy hồi kết quả.
 
@@ -174,3 +174,5 @@ Mã TC dưới đây là mã gợi ý cho task kiểm thử sau, chưa thay th�
 | TC-UC01-19 | Khi tắt PAYMENT_ALLOW_SIMULATE, body FAILED bị bỏ qua và mặc định SUCCESS; khi bật thì có thể test FAILED. | Chính / ALT-02 | FR-07-AC6 |
 
 **Điều kiện nghiệm thu UC-01:** Hoàn thành luồng chính và các nhánh lỗi Must; các nhánh gắn FR-10/FR-11 chỉ bắt buộc nếu nhóm quyết định triển khai chức năng Should tương ứng. Kiểm thử phải bảo đảm không tạo đơn khi transaction thất bại, không hoàn kho sau thanh toán FAILED và không xử lý trùng thanh toán.
+
+**Bổ sung 25/11:** Ghi Payment và chuyển trạng thái có điều kiện trong cùng transaction; bảo đảm không có hai Payment SUCCESS trên cùng Order. Key trùng giữa hai user không va chạm. Không coi thay đổi thiết kế đã triển khai; xem [ADR-007](../architecture/adr/007-order-payment-design.md).

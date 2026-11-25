@@ -32,7 +32,6 @@ skinparam note {
 title BrewLite - Use-case UC-01: Đặt và thanh toán đơn hàng
 
 actor "Customer" as Customer
-actor "Payment Service" as PaymentService
 
 rectangle "BrewLite" {
   usecase "UC-01\nĐặt và thanh toán\nđơn hàng" as UC01
@@ -45,7 +44,6 @@ rectangle "BrewLite" {
 
 Customer -- UC01
 Customer -- UC09
-PaymentService -- UC02
 UC01 ..> UC02 : <<include>>
 UC17 --|> UC02
 UC18 --|> UC02
@@ -72,9 +70,9 @@ note bottom of UC14
 end note
 
 note bottom of UC02
-  WALLET hoặc CARD; Payment Service
-  chỉ mô phỏng. Bắt buộc có
-  Idempotency-Key.
+  WALLET hoặc CARD; dùng module
+  Payment Simulator nội bộ NestJS.
+  Idempotency-Key bắt buộc, theo user.
 end note
 
 legend bottom

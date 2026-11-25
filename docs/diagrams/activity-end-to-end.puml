@@ -164,28 +164,27 @@ while (Đơn còn PENDING và muốn thanh toán?) is (Có)
   elseif (Thiếu Idempotency-Key?) then (400)
     |Next.js UI|
     :Thông báo lỗi yêu cầu;\nGiữ đơn PENDING;
+  elseif (Đơn không tồn tại/khác chủ?) then (404)
+    |Next.js UI|
+    :Thông báo không tìm thấy đơn;
+    stop
   else (Hợp lệ)
     |NestJS API|
-    if (Gửi lại cùng key và body?) then (Có)
+    if (Cùng user/key/body đã lưu?) then (Có)
       :Trả đúng kết quả đã lưu;\nKhông tạo Payment mới;
-    elseif (Cùng key, body khác?) then (422)
+    elseif (Cùng user/key, body khác?) then (422)
       |Next.js UI|
       :Hiển thị IDEMPOTENCY_KEY_REUSED;
-      stop
-    elseif (Đơn không tồn tại/khác chủ?) then (404)
-      |Next.js UI|
-      :Thông báo không tìm thấy đơn;
       stop
     elseif (Đơn không còn PENDING?) then (409)
       |Next.js UI|
       :Hiển thị ORDER_NOT_PAYABLE;
       stop
     else (Yêu cầu mới hợp lệ)
-      |Payment Service|
-      :Mô phỏng kết quả WALLET/CARD;
       |NestJS API|
+      :Gọi Payment Simulator nội bộ\nđể mô phỏng WALLET/CARD;
       if (SUCCESS?) then (Có)
-        :Lưu Payment SUCCESS;\nChuyển PENDING sang PAID;\nTrong cùng transaction;
+        :Lưu Payment SUCCESS;\nCập nhật PENDING sang PAID có điều kiện;\nCùng transaction;
         :HTTP 200;
       else (FAILED)
         :Lưu Payment FAILED;\nGiữ đơn PENDING;\nTrong cùng transaction;
@@ -208,6 +207,15 @@ while (Đơn còn PENDING và muốn thanh toán?) is (Có)
     endif
   endif
 endwhile (Không)
+
+|Next.js UI|
+if (Đã thanh toán SUCCESS / đơn PAID?) then (Có)
+  :Chuyển sang màn hình theo dõi đơn;
+else (Không)
+  |Customer|
+  :Dừng checkout; đơn có thể vẫn PENDING;
+  stop
+endif
 
 fork
   |Next.js UI|
@@ -234,27 +242,50 @@ fork again
     |Cashier/Manager|
     :Xem hàng đợi đơn;
     :Chọn đơn PAID;
-    |NestJS API|
-    :PATCH /staff/orders/:id/status;
-    if (Chuyển trạng thái hợp lệ?) then (Có)
-      :PAID -> PREPARING;
-    else (HTTP 409)
-      :INVALID_STATUS_TRANSITION;
-      |Cashier/Manager|
-      :Chọn lại trạng thái hợp lệ;
+    :Yêu cầu chuyển sang PREPARING;
+    repeat
       |NestJS API|
-      :PAID -> PREPARING;
-    endif
+      :PATCH /staff/orders/:id/status\nstatus=PREPARING;
+      if (Chuyển trạng thái hợp lệ?) then (HTTP 200)
+        :Cập nhật PAID -> PREPARING;
+      else (HTTP 409)
+        :Trả INVALID_STATUS_TRANSITION;\nKhông tự đổi trạng thái;
+        |Cashier/Manager|
+        :Tải lại trạng thái đơn;
+        if (Đơn vẫn PAID và muốn thử lại?) then (Có)
+          :Chọn lại PREPARING;
+        else (Không)
+          :Dừng xử lý đơn này;
+          stop
+        endif
+      endif
+    repeat while (Chưa chuyển thành PREPARING?) is (Có) not (Không)
     |Cashier/Manager|
     :Chuẩn bị đồ uống;
     :Xác nhận đã sẵn sàng;
     |NestJS API|
-    :PATCH /staff/orders/:id/status\nPREPARING -> READY;
+    :PATCH /staff/orders/:id/status\nstatus=READY;
+    if (Chuyển trạng thái hợp lệ?) then (HTTP 200)
+      :Cập nhật PREPARING -> READY;
+    else (HTTP 409)
+      :Trả INVALID_STATUS_TRANSITION;
+      |Cashier/Manager|
+      :Tải lại trạng thái; dừng thao tác hiện tại;
+      stop
+    endif
     |Cashier/Manager|
     :Giao đồ uống cho Customer;
     :Xác nhận khách nhận món;
     |NestJS API|
-    :PATCH /staff/orders/:id/status\nREADY -> COMPLETED;
+    :PATCH /staff/orders/:id/status\nstatus=COMPLETED;
+    if (Chuyển trạng thái hợp lệ?) then (HTTP 200)
+      :Cập nhật READY -> COMPLETED;
+    else (HTTP 409)
+      :Trả INVALID_STATUS_TRANSITION;
+      |Cashier/Manager|
+      :Tải lại trạng thái; không tự chuyển đơn;
+      stop
+    endif
   else (HTTP 401)
     |Cashier/Manager|
     :Thông báo sai thông tin đăng nhập\nKhông xử lý đơn;

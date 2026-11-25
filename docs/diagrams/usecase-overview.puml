@@ -37,7 +37,6 @@ title BrewLite - Sơ đồ use-case tổng quát
 actor "Customer" as Customer
 actor "Cashier\n(role STAFF)" as Cashier
 actor "Manager" as Manager
-actor "Payment Service" as PaymentService
 
 rectangle "BrewLite" {
   usecase "UC-01\nĐặt và thanh toán\nđơn hàng" as UC01
@@ -77,7 +76,6 @@ Cashier -- UC12
 Manager -- UC09
 Manager -- UC12
 Manager -- UC16
-PaymentService -- UC02
 
 UC01 ..> UC02 : <<include>>
 UC04 ..> UC03 : <<extend>>
@@ -94,9 +92,9 @@ note right of UC01
 end note
 
 note right of UC02
-  WALLET hoặc CARD.
-  Có Idempotency-Key.
-  Payment Service chỉ mô phỏng.
+  WALLET hoặc CARD; Idempotency-Key theo user.
+  Payment Simulator là module nội bộ
+  NestJS, không phải actor bên ngoài.
 end note
 
 note bottom of UC04
